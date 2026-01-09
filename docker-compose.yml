@@ -1,0 +1,97 @@
+services:
+  # ============================================================================
+  # MongoDB Database
+  # ============================================================================
+  mongodb:
+    image: mongo:7.0
+    container_name: watchvine_mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    environment:
+      - MONGO_INITDB_DATABASE=watchvine_refined
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - watchvine_network
+
+  # ============================================================================
+  # Unified Application (Flask + FastAPI + Scraper)
+  # ============================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: watchvine_app
+    restart: always
+    ports:
+      - "5000:5000"  # Main Flask App
+      - "8001:8001"  # Text Search API
+      - "8002:8002"  # Image Identifier API
+    volumes:
+      - ./temp_images:/app/temp_images
+      - ./logs:/app/logs
+      - app_data:/app  # Persist index files (vector_index.bin, etc.)
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Database Connection
+      - MONGO_URI=mongodb://mongodb:27017/
+      - MONGODB_URI=mongodb://mongodb:27017/
+      - DATABASE_NAME=watchvine_refined
+      - COLLECTION_NAME=products
+      - MONGODB_DB=whatsapp_bot
+      
+      # Internal Service URLs (Now running on localhost within the container)
+      - TEXT_SEARCH_API_URL=http://localhost:8001
+      - IMAGE_IDENTIFIER_API_URL=http://localhost:8002
+      
+      # API Keys & Configuration (passed from host .env)
+      - Google_api=${Google_api}
+      - google_model=${google_model}
+      - TYPEGPT_API_KEY=${TYPEGPT_API_KEY}
+      - TYPEGPT_MODEL=${TYPEGPT_MODEL}
+      - TYPEGPT_BASE_URL=${TYPEGPT_BASE_URL}
+      - TYPEGPT_PROVIDER=${TYPEGPT_PROVIDER}
+      - EVOLUTION_API_URL=${EVOLUTION_API_URL}
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
+      - INSTANCE_NAME=${INSTANCE_NAME}
+      - GOOGLE_APPS_SCRIPT_URL=${GOOGLE_APPS_SCRIPT_URL}
+      - GOOGLE_APPS_SCRIPT_SECRET=${GOOGLE_APPS_SCRIPT_SECRET}
+      - GOOGLE_SHEET_URL=${GOOGLE_SHEET_URL}
+      - IMAGE_FORWARD_NUMBER=${IMAGE_FORWARD_NUMBER}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - watchvine_network
+
+# ============================================================================
+# VOLUMES
+# ============================================================================
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+  app_data:
+    driver: local
+
+# ============================================================================
+# NETWORKS
+# ============================================================================
+networks:
+  watchvine_network:
+    driver: bridge

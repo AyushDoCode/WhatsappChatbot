@@ -1,0 +1,207 @@
+═══════════════════════════════════════════════════════════════════════
+🚀 DIRECT DOCKER COMMANDS FOR DEPLOYMENT
+═══════════════════════════════════════════════════════════════════════
+
+Use these commands directly on your server (copy-paste one by one)
+
+═══════════════════════════════════════════════════════════════════════
+STEP 1: STOP & REMOVE OLD WATCHVINE CONTAINERS
+═══════════════════════════════════════════════════════════════════════
+
+# Stop old containers (Evolution/Redis/Postgres will NOT be touched)
+docker stop watchvine_main_app watchvine_text_search watchvine_image_identifier 2>/dev/null || true
+
+# Remove old containers
+docker rm watchvine_main_app watchvine_text_search watchvine_image_identifier 2>/dev/null || true
+
+# Clean temp images
+rm -rf temp_images/*
+mkdir -p temp_images
+
+# Clean logs (optional)
+mkdir -p logs/archive
+mv logs/main.log logs/archive/main.log.$(date +%Y%m%d) 2>/dev/null || true
+
+═══════════════════════════════════════════════════════════════════════
+STEP 2: BUILD DOCKER IMAGES
+═══════════════════════════════════════════════════════════════════════
+
+# Build Main App
+docker-compose build main_app
+
+# Build Text Search API
+docker-compose build text_search_api
+
+# Build Image Identifier API
+docker-compose build image_identifier_api
+
+═══════════════════════════════════════════════════════════════════════
+STEP 3: START SERVICES
+═══════════════════════════════════════════════════════════════════════
+
+# Start MongoDB
+docker-compose up -d mongodb
+
+# Wait for MongoDB
+echo "Waiting for MongoDB to start..."
+sleep 30
+
+# Start Main App
+docker-compose up -d main_app
+
+# Wait for Main App
+echo "Waiting for Main App to start..."
+sleep 60
+
+# Start Text Search API
+docker-compose up -d text_search_api
+
+# Start Image Identifier API
+docker-compose up -d image_identifier_api
+
+# Check all containers
+docker ps
+
+═══════════════════════════════════════════════════════════════════════
+STEP 4: RUN INDEXER (ALL 3514 PRODUCTS)
+═══════════════════════════════════════════════════════════════════════
+
+# Start indexer in background (takes 2-3 hours)
+docker exec -d watchvine_image_identifier bash -c "python indexer_v2.py > /app/logs/indexer_production.log 2>&1"
+
+# Monitor progress (Ctrl+C to exit)
+docker exec watchvine_image_identifier tail -f /app/logs/indexer_production.log
+
+# OR check progress periodically
+docker exec watchvine_image_identifier tail -20 /app/logs/indexer_production.log
+
+# Check if completed (look for "completed" message)
+docker exec watchvine_image_identifier grep "completed" /app/logs/indexer_production.log
+
+═══════════════════════════════════════════════════════════════════════
+STEP 5: RESTART IMAGE IDENTIFIER (AFTER INDEXER COMPLETES)
+═══════════════════════════════════════════════════════════════════════
+
+# Once indexer shows "completed", restart to load hash_index.pkl
+docker restart watchvine_image_identifier
+
+# Wait 10 seconds
+sleep 10
+
+# Verify it loaded the hash index
+curl http://localhost:8002/health
+
+# Should show: "hash_index_loaded": true
+
+═══════════════════════════════════════════════════════════════════════
+STEP 6: VERIFY ALL SERVICES
+═══════════════════════════════════════════════════════════════════════
+
+# Check all containers are running
+docker ps
+
+# Check health of all services
+curl http://localhost:5000/health
+curl http://localhost:8001/health
+curl http://localhost:8002/health
+
+# View logs
+docker logs watchvine_main_app --tail 50
+docker logs watchvine_text_search --tail 50
+docker logs watchvine_image_identifier --tail 50
+
+═══════════════════════════════════════════════════════════════════════
+STEP 7: TEST IMAGE IDENTIFIER
+═══════════════════════════════════════════════════════════════════════
+
+# Download test image
+wget https://cdn.cartpe.in/images/gallery_md/695d067c79a500.jpeg -O test.jpg
+
+# Test image search
+curl -X POST http://localhost:8002/search -F "file=@test.jpg"
+
+# Should return: "status": "exact_match" with 99-100% confidence
+
+# Clean up
+rm test.jpg
+
+═══════════════════════════════════════════════════════════════════════
+STEP 8: ENABLE NIGHTLY SCRAPER (12 AM IST)
+═══════════════════════════════════════════════════════════════════════
+
+# Start nightly scraper in background
+docker exec -d watchvine_main_app bash -c "python nightly_scraper_scheduler.py > /app/logs/scheduler.log 2>&1 &"
+
+# Check if it started
+docker exec watchvine_main_app ps aux | grep scheduler
+
+# View scheduler logs
+docker exec watchvine_main_app tail /app/logs/scheduler.log
+
+═══════════════════════════════════════════════════════════════════════
+USEFUL MONITORING COMMANDS
+═══════════════════════════════════════════════════════════════════════
+
+# Check all containers
+docker ps
+
+# Check container stats (CPU, Memory)
+docker stats
+
+# View real-time logs
+docker logs watchvine_main_app -f
+docker logs watchvine_image_identifier -f
+
+# Check MongoDB products count
+docker exec watchvine_mongodb mongosh watchvine_refined --eval "db.products.count()"
+
+# Check if hash_index.pkl exists
+docker exec watchvine_image_identifier ls -lh hash_index.pkl metadata.pkl vector_index.bin
+
+# Check disk space
+df -h
+docker system df
+
+═══════════════════════════════════════════════════════════════════════
+TROUBLESHOOTING COMMANDS
+═══════════════════════════════════════════════════════════════════════
+
+# Restart a container
+docker restart watchvine_main_app
+docker restart watchvine_image_identifier
+
+# View container logs (last 100 lines)
+docker logs watchvine_main_app --tail 100
+docker logs watchvine_image_identifier --tail 100
+
+# Check indexer progress
+docker exec watchvine_image_identifier tail -20 /app/logs/indexer_production.log
+
+# Re-run indexer if needed
+docker exec -d watchvine_image_identifier python indexer_v2.py
+
+# Clean up Docker system
+docker system prune -f
+
+# Restart all services
+docker-compose restart
+
+═══════════════════════════════════════════════════════════════════════
+QUICK COPY-PASTE DEPLOYMENT (ALL IN ONE)
+═══════════════════════════════════════════════════════════════════════
+
+# Run all these commands in sequence:
+
+docker stop watchvine_main_app watchvine_text_search watchvine_image_identifier 2>/dev/null || true
+docker rm watchvine_main_app watchvine_text_search watchvine_image_identifier 2>/dev/null || true
+rm -rf temp_images/* && mkdir -p temp_images logs
+docker-compose build main_app text_search_api image_identifier_api
+docker-compose up -d mongodb && sleep 30
+docker-compose up -d main_app && sleep 60
+docker-compose up -d text_search_api image_identifier_api
+docker ps
+docker exec -d watchvine_image_identifier bash -c "python indexer_v2.py > /app/logs/indexer_production.log 2>&1"
+echo "Indexer started! Monitor with: docker exec watchvine_image_identifier tail -f /app/logs/indexer_production.log"
+echo "After 2-3 hours, run: docker restart watchvine_image_identifier"
+
+═══════════════════════════════════════════════════════════════════════

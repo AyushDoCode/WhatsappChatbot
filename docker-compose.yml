@@ -3,25 +3,7 @@ services:
   # MongoDB Database - STARTS FIRST
   # Re-added to manage existing data in 'watchvine_mongodb'
   # ============================================================================
-  mongodb:
-    image: mongo:7.0
-    container_name: watchvine_mongodb
-    restart: always
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-      - mongodb_config:/data/configdb
-    environment:
-      - MONGO_INITDB_DATABASE=watchvine_refined
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    networks:
-      - watchvine_network
+  
 
   # ============================================================================
   # Main Flask App

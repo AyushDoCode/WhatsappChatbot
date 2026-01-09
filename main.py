@@ -627,24 +627,19 @@ def handle_image_message(phone_number: str, message_info: dict, instance_name: s
                 product_name = result.get('product_name')
                 price = result.get('price')
                 product_url = result.get('product_url')
-                similarity = result.get('similarity_score', 0)
                 confidence = result.get('confidence', 'unknown')
 
                 # Construct message
                 msg = f"""🎉 *Product Found!* (Confidence: {confidence.upper()})
-
 📦 *{product_name}*
 💰 {price}
-🔗 {product_url}
-
-"""
+🔗 {product_url}"""
 
                 # Add similar results if available
                 top_results = result.get('top_5_results', [])
                 if top_results and len(top_results) > 1:
-                    msg += """*Also similar:*
-"""
-                    for idx, res in enumerate(top_results[1:4], 1): # Show next 3
+                    msg += "\n*Also similar:*\n"
+                    for idx, res in enumerate(top_results[1:4], 1):  # Show next 3
                         msg += f"{idx}. {res['product_name']} ({res.get('price', 'N/A')})\n"
                         msg += f"   🔗 {res['product_url']}\n"
 
@@ -653,7 +648,7 @@ def handle_image_message(phone_number: str, message_info: dict, instance_name: s
                 # Send the matched image back as confirmation (optional, but good UX)
                 matched_image_url = result.get('matched_image_url')
                 if matched_image_url:
-                     whatsapp.send_media_via_url(phone_number, matched_image_url, "✅ Here is the matched product", "image")
+                    whatsapp.send_media_via_url(phone_number, matched_image_url, "✅ Here is the matched product", "image")
 
             else:
                 whatsapp.send_message(phone_number, "❌ Sorry, I couldn't find an exact match for this product.")
@@ -776,7 +771,7 @@ def webhook():
                     success = order_storage.save_order(order_data)
 
                     if success:
-                        response = " *Order Confirmed!* Our team will contact you within 24 hours. Thank you! 🙏"
+                        response = "*Order Confirmed!* Our team will contact you within 24 hours. Thank you! 🙏"
                         whatsapp.send_message(phone_number, response)
                         orchestrator.clear_user_data(phone_number)
                     else:
@@ -791,4 +786,3 @@ def webhook():
 if __name__ == '__main__':
     logger.info("🚀 STARTING WATCHVINE MAIN APPLICATION")
     app.run(host='0.0.0.0', port=5000, debug=False)
-    

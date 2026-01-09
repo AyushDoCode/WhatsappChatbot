@@ -34,7 +34,7 @@ MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
 DATABASE_NAME = os.getenv("DATABASE_NAME", "watchvine_refined")
 COLLECTION_NAME = os.getenv("COLLECTION_NAME", "products")
 SCRAPER_PATH = "fast_scraper.py"
-INDEXER_PATH = "indexer.py"
+INDEXER_PATH = "indexer_v2.py"
 
 
 class NightlyScraper:
@@ -88,19 +88,21 @@ class NightlyScraper:
         """Remove old index files before creating new ones"""
         try:
             logger.info("🗑️  Removing old index files...")
-            index_file = "image_identifier/vector_index.bin"
-            metadata_file = "image_identifier/metadata.pkl"
+            # Files are generated in the current directory by indexer_v2.py
+            files_to_remove = [
+                "vector_index.bin", 
+                "metadata.pkl", 
+                "hash_index.pkl",
+                "image_identifier/vector_index.bin", # Legacy path check
+                "image_identifier/metadata.pkl"      # Legacy path check
+            ]
             
             removed_count = 0
-            if os.path.exists(index_file):
-                os.remove(index_file)
-                logger.info(f"  ✅ Removed: {index_file}")
-                removed_count += 1
-            
-            if os.path.exists(metadata_file):
-                os.remove(metadata_file)
-                logger.info(f"  ✅ Removed: {metadata_file}")
-                removed_count += 1
+            for file_path in files_to_remove:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    logger.info(f"  ✅ Removed: {file_path}")
+                    removed_count += 1
             
             if removed_count == 0:
                 logger.info("  ℹ️  No old index files found")

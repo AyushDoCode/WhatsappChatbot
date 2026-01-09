@@ -1,11 +1,12 @@
-"""
 WatchVine WhatsApp Bot - Multi-Agent Architecture
 Main entry point with orchestrator for intelligent action handling
-"""
+
 
 import os
 import logging
 import time
+import requests
+import base64
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta
 from typing import Dict
@@ -164,10 +165,6 @@ class ConversationAgent:
             return self.cached_content
 
         try:
-            # Check for existing cache (simplified: just create new one with TTL)
-            # In production, you'd list and find by name to avoid duplication
-            # For this simplified version, we'll try to create it.
-            
             logger.info("🆕 Creating/Updating Agent Context Cache...")
             self.cached_content = caching.CachedContent.create(
                 model=self.model_name,
@@ -263,7 +260,7 @@ class ConversationAgent:
         
         elif intent == 'detect_confirmation':
             order_data = metadata.get('order_data', {})
-            context += f"""
+            context += """
 **CRITICAL INTERNAL TASK - CONFIRMATION DETECTION**
 You are now in confirmation detection mode. Analyze the customer's message to determine if they are confirming the order or not.
 
@@ -310,9 +307,6 @@ class WhatsAppHandler:
     
     def send_message(self, phone_number: str, message: str, max_retries: int = 3) -> bool:
         """Send WhatsApp message with retry logic"""
-        import requests
-        from requests.exceptions import Timeout, ConnectionError
-        
         phone_clean = phone_number.replace("+", "").replace("-", "").replace(" ", "")
         
         # Add country code if not present (assuming Indian numbers)
@@ -343,8 +337,6 @@ class WhatsAppHandler:
     
     def forward_media_with_base64(self, to_number: str, base64_data: str, caption: str, media_type: str = "image", max_retries: int = 3) -> bool:
         """Forward media using base64 data from Evolution API webhook"""
-        import requests
-        
         to_clean = to_number.replace("+", "").replace("-", "").replace(" ", "")
         if len(to_clean) == 10: to_clean = "91" + to_clean
         
@@ -374,8 +366,6 @@ class WhatsAppHandler:
 
     def send_media_via_url(self, to_number: str, media_url: str, caption: str, media_type: str = "image", max_retries: int = 3) -> bool:
         """Send media using direct URL"""
-        import requests
-        
         to_clean = to_number.replace("+", "").replace("-", "").replace(" ", "")
         if len(to_clean) == 10: to_clean = "91" + to_clean
         
@@ -478,7 +468,6 @@ def detect_category_from_query(query: str) -> str:
 
 def send_product_images_v2(keyword: str, phone_number: str, start_index: int = 0, batch_size: int = 10):
     """Search products and send limited batch"""
-    import requests
     from concurrent.futures import ThreadPoolExecutor, as_completed
     
     if not keyword or len(keyword.strip()) < 2: return (False, 0, 0)
@@ -519,9 +508,12 @@ Please wait... 📸"""
             if not images: return False
             
             try:
-                caption = f"📦 {product_name}\n💰 ₹{price}"
-                if product_url: caption += f"\n🔗 {product_url}"
-                if len(images) > 1: caption += f"\n\n📸 {len(images)} images available"
+                caption = f"""📦 {product_name}
+💰 ₹{price}"""
+                if product_url: 
+                    caption += f"\n🔗 {product_url}"
+                if len(images) > 1: 
+                    caption += f"\n\n📸 {len(images)} images available"
                 
                 return whatsapp.forward_media_with_base64(phone_number, images[0], caption, "image")
             except Exception: return False
@@ -544,19 +536,18 @@ Please wait... 📸"""
             )
         except Exception as e: logger.error(f"Error updating sent_count: {e}")
         
-        # Send completion message (UPDATED as per user request)
+        # Send completion message
         if success_count > 0:
             completion_msg = ""
-            
             if end_index < total_found:
                 remaining = total_found - end_index
-                completion_msg = f"""📦 {remaining} more products available!
+                completion_msg += f"""📦 {remaining} more products available!
 💬 Type 'show more {keyword}' to see them
 
 """
             
-            # Append Gujarati Text (Transliterated instruction followed by Gujarati script)
-            completion_msg += """તમે આ વૉચ બે રીતે ઓર્ડર કરી શકો છો
+            completion_msg += """
+તમે આ વૉચ બે રીતે ઓર્ડર કરી શકો છો
 1 અમદાવાદ-બોપલ સ્થિત અમારી સ્ટોર પરથી સીધી આવીને લઈ શકો છો.
 2. ઘર બેઠા Open Box Cash on Delivery દ્વારા પણ મંગાવી શકો છો.
 તમને કયો વિકલ્પ વધુ યોગ્ય લાગે છે? કૃપા કરીને જણાવશો."""
@@ -575,44 +566,27 @@ Please wait... 📸"""
 
 def handle_image_message(phone_number: str, message_info: dict, instance_name: str = None):
     """Handle incoming image messages and search for products"""
-    import requests
-    import base64
-    
     logger.info(f"📸 Received image from {phone_number}")
     whatsapp.send_message(phone_number, "🔍 Searching for similar products... Please wait.")
     
     try:
-        # 1. Extract Image Data
         image_data = None
         
-        # Check if base64 is directly provided (Evolution API often does this if configured)
         if 'base64' in message_info:
             image_data = base64.b64decode(message_info['base64'])
-        
-        # If no base64, try to download from URL (if public) or handle otherwise
         elif 'url' in message_info:
             img_url = message_info['url']
             try:
-                # This might fail if the URL requires auth, but worth a try if Evolution proxies it
                 img_response = requests.get(img_url, timeout=10)
                 if img_response.status_code == 200:
                     image_data = img_response.content
             except Exception as e:
                 logger.error(f"Failed to download image from URL: {e}")
 
-        # If still no image data, try to get it from the message object directly (standard WA structure)
-        if not image_data and 'imageMessage' in message_info:
-             img_msg = message_info['imageMessage']
-             # Sometimes Evolution puts base64 in 'jpegThumbnail' (low res) or we might need to fetch
-             # If we can't get the full image, we might fail here. 
-             # For now, let's assume Evolution API is configured to send base64 or we can't process it easily without extra API calls.
-             pass
-
         if not image_data:
             whatsapp.send_message(phone_number, "⚠️ Sorry, I couldn't process this image. Please try again.")
             return
 
-        # 2. Call Image Identifier API
         IMAGE_API_URL = os.getenv("IMAGE_IDENTIFIER_API_URL", "http://image_identifier_api:8002")
         files = {'file': ('query_image.jpg', image_data, 'image/jpeg')}
         
@@ -623,14 +597,11 @@ def handle_image_message(phone_number: str, message_info: dict, instance_name: s
             status = result.get('status')
             
             if status in ['exact_match', 'match_found']:
-                # Found a match
                 product_name = result.get('product_name')
                 price = result.get('price')
                 product_url = result.get('product_url')
-                similarity = result.get('similarity_score', 0)
                 confidence = result.get('confidence', 'unknown')
                 
-                # Construct message
                 msg = f"""🎉 *Product Found!* (Confidence: {confidence.upper()})
 
 📦 *{product_name}*
@@ -638,41 +609,28 @@ def handle_image_message(phone_number: str, message_info: dict, instance_name: s
 🔗 {product_url}
 
 """
-                
-                # Add similar results if available
                 top_results = result.get('top_5_results', [])
                 if top_results and len(top_results) > 1:
-                    msg += """*Also similar:*
-"""
-                    for idx, res in enumerate(top_results[1:4], 1): # Show next 3
-                        msg += f"{idx}. {res['product_name']} ({res.get('price', 'N/A')})\n"
-                        msg += f"   🔗 {res['product_url']}\n"
+                    msg += """*Also similar:*"""
+                    for idx, res in enumerate(top_results[1:4], 1):
+                        msg += f"{idx}. {res['product_name']} ({res.get('price', 'N/A')})\n   🔗 {res['product_url']}\n"
                 
                 whatsapp.send_message(phone_number, msg)
                 
-                # Send the matched image back as confirmation (optional, but good UX)
                 matched_image_url = result.get('matched_image_url')
                 if matched_image_url:
                      whatsapp.send_media_via_url(phone_number, matched_image_url, "✅ Here is the matched product", "image")
-
             else:
                 whatsapp.send_message(phone_number, "❌ Sorry, I couldn't find an exact match for this product.")
-                
-                # Show top guesses anyway if they exist
                 top_results = result.get('top_5_results', [])
                 if top_results:
-                    msg = """*Here are the closest matches I found:*
-
-"""
+                    msg = """*Here are the closest matches I found:*"""
                     for idx, res in enumerate(top_results[:3], 1):
-                        msg += f"{idx}. {res['product_name']} ({res.get('price', 'N/A')})\n"
-                        msg += f"   🔗 {res['product_url']}\n"
+                        msg += f"{idx}. {res['product_name']} ({res.get('price', 'N/A')})\n   🔗 {res['product_url']}\n"
                     whatsapp.send_message(phone_number, msg)
-
         else:
             logger.error(f"Image API Error: {response.text}")
             whatsapp.send_message(phone_number, "⚠️ Technical error identifying the image.")
-
     except Exception as e:
         logger.error(f"Error handling image message: {e}")
         whatsapp.send_message(phone_number, "⚠️ An error occurred while processing your image.")
@@ -694,12 +652,12 @@ def webhook():
             from_me = key_info.get('fromMe', False)
             remote_jid = key_info.get('remoteJid', '')
             
-            if from_me or not remote_jid: return jsonify({"status": "success"}), 200
+            if from_me or not remote_jid: 
+                return jsonify({"status": "success"}), 200
             
             phone_number = remote_jid.split('@')[0]
             
             # Check for Image Message
-            # Evolution API structure might vary, checking multiple places
             is_image = False
             msg_type = message_data.get('messageType', '')
             
@@ -708,19 +666,12 @@ def webhook():
             elif 'ephemeralMessage' in message_info:
                 if 'imageMessage' in message_info['ephemeralMessage'].get('message', {}):
                     is_image = True
-                    # Normalize structure
                     message_info = message_info['ephemeralMessage']['message']['imageMessage']
             
             if is_image and not from_me:
-                # Pass the correct data part that contains 'base64' or 'url'
-                # Evolution often puts 'base64' in the root of 'data' or inside 'message' depending on config
-                # We'll pass both `message_data` (root) and `message_info` (nested) merged or just handle in function
-                # Ideally, look for where base64 is.
-                
-                # Checking if base64 is at root data level (common in Evolution)
                 payload_to_pass = message_info
                 if 'base64' in message_data:
-                    payload_to_pass = message_data # Use root data if it has base64
+                    payload_to_pass = message_data 
                 
                 handle_image_message(phone_number, payload_to_pass, INSTANCE_NAME)
                 return jsonify({"status": "success"}), 200
@@ -732,29 +683,27 @@ def webhook():
             )
             
             if not from_me and conversation:
-                logger.info(f"Message from {phone_number}: {conversation[:50]}...")
+                logger.info(f"📩 Message from {phone_number}: {conversation[:50]}...")
                 
-                # Analyze with Orchestrator (BackendToolClassifier)
                 action, metadata = orchestrator.analyze_message(conversation, phone_number)
-                logger.info(f"Action: {action}")
+                logger.info(f"🎯 Action: {action}")
                 
                 if action == 'find_product':
                     keyword = metadata.get('keyword', '')
                     range_str = metadata.get('range', '0-10')
-                    
                     try:
-                        start_idx, end_idx = map(int, range_str.split('-'))
+                        indices = range_str.split('-')
+                        start_idx = int(indices[0])
+                        end_idx = int(indices[1])
                         batch_size = end_idx - start_idx
                     except:
                         start_idx, batch_size = 0, 10
                     
-                    # Check if already shown all
                     search_ctx = orchestrator.get_search_context(phone_number)
                     if search_ctx and search_ctx.get('sent_count', 0) >= search_ctx.get('total_found', 0) and search_ctx.get('total_found', 0) > 0:
-                        all_shown_msg = f"""✅ Tame badha {search_ctx['total_found']} products joi lidha che!
+                        all_shown_msg = """✅ Tame badha products joi lidha che!
 
-🔍 Want to search for something else?
-"""
+🔍 Want to search for something else?"""
                         whatsapp.send_message(phone_number, all_shown_msg)
                     else:
                         success, total_found, sent_count = send_product_images_v2(
@@ -770,25 +719,21 @@ def webhook():
                     whatsapp.send_message(phone_number, response)
                 
                 elif action == 'save_order_direct' or action == 'save_data_to_google_sheet':
-                    # Save order directly
                     order_data = metadata.get('order_data', metadata.get('data', {}))
                     order_data['order_id'] = f"WV{datetime.now().strftime('%Y%m%d%H%M%S')}{phone_number[-4:]}"
                     order_data['timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     order_data['status'] = 'Pending'
                     
                     success = order_storage.save_order(order_data)
-                    
                     if success:
-                        response = f"""🎉 *Order Confirmed!*
-ID: {order_data['order_id']}
-Our team will contact you within 24 hours. Thank you! 🙏"""
+                        response = "🎉 Order Confirmed! 
+                        Our team will contact you within 24 hours. Thank you! 🙏"
                         whatsapp.send_message(phone_number, response)
                         orchestrator.clear_user_data(phone_number)
                     else:
                         whatsapp.send_message(phone_number, "Technical issue saving order. Please call us.")
                 
         return jsonify({"status": "success"}), 200
-        
     except Exception as e:
         logger.error(f"Webhook error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500

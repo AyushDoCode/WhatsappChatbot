@@ -1,4 +1,4 @@
-# Single Unified Dockerfile for WatchVine WhatsApp Bot
+# Multi-service Docker image for WhatsApp Bot with Product Search
 FROM python:3.10-slim
 
 # Set working directory
@@ -15,35 +15,93 @@ RUN apt-get update && apt-get install -y \
     supervisor \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first to leverage Docker cache
+# Copy requirements and install Python dependencies
 COPY requirements.txt .
-
-# Install Python dependencies
-RUN pip install --no-cache-dir "numpy<2"
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Install numpy first to ensure correct version for FAISS
+RUN pip install --no-cache-dir "numpy<2"
+
+# Install additional dependencies for scheduler and image processing
+RUN pip install --no-cache-dir \
+    schedule==1.2.0 \
+    uvicorn==0.27.0 \
+    fastapi==0.109.0 \
+    faiss-cpu==1.7.4 \
+    sentence-transformers==2.3.1 \
+    Pillow==10.2.0 \
+    beautifulsoup4==4.12.3
 
 # Copy application code
 COPY . .
 
-# Create necessary directories for logs and temp files
-RUN mkdir -p /app/logs /app/temp_images
+# Ensure image_identifier folder and its contents are present
+COPY image_identifier/ /app/image_identifier/
 
-# Ensure startup scripts are executable
-COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh && \
-    sed -i 's/\r$//' /app/entrypoint.sh
+# Create necessary directories
+RUN mkdir -p /app/temp_images /app/logs
 
-# ----------------------------------------------------------------------------
-# Supervisor Configuration
-# ----------------------------------------------------------------------------
-RUN echo '[supervisord]\n\tnodaemon=true\n\tlogfile=/app/logs/supervisord.log\n\tpidfile=/var/run/supervisord.pid\n\n\t[program:main_flask]\n\tcommand=python main.py\n\tdirectory=/app\n\tautostart=true\n\tautorestart=true\n\tstderr_logfile=/app/logs/main.err.log\n\tstdout_logfile=/app/logs/main.out.log\n\tenvironment=PYTHONUNBUFFERED=1\n\tstartsecs=10\n\n\t[program:text_search_api]\n\tcommand=python text_search_api.py\n\tdirectory=/app\n\tautostart=true\n\tautorestart=true\n\tstderr_logfile=/app/logs/text_search_api.err.log\n\tstdout_logfile=/app/logs/text_search_api.out.log\n\tenvironment=PYTHONUNBUFFERED=1\n\tstartsecs=10\n\n\t[program:image_identifier_api]\n\tcommand=python api.py\n\tdirectory=/app\n\tautostart=true\n\tautorestart=true\n\tstderr_logfile=/app/logs/image_identifier_api.err.log\n\tstdout_logfile=/app/logs/image_identifier_api.out.log\n\tenvironment=PYTHONUNBUFFERED=1\n\tstartsecs=10\n\n\t[program:nightly_scraper]\n\tcommand=python nightly_scraper_scheduler.py\n\tdirectory=/app\n\tautostart=true\n\tautorestart=true\n\tstderr_logfile=/app/logs/nightly_scraper.err.log\n\tstdout_logfile=/app/logs/nightly_scraper.out.log\n\tenvironment=PYTHONUNBUFFERED=1\n\tstartsecs=10' > /etc/supervisor/conf.d/supervisord.conf
+# Copy and set permissions for startup script
+COPY startup.sh /app/startup.sh
+RUN chmod +x /app/startup.sh && \
+    sed -i 's/\r$//' /app/startup.sh
+
+# Create supervisord configuration
+RUN echo '[supervisord]\n\
+nodaemon=true\n\
+logfile=/app/logs/supervisord.log\n\
+pidfile=/var/run/supervisord.pid\n\
+\n\
+[program:main]\n\
+command=python main.py\n\
+directory=/app\n\
+autostart=true\n\
+autorestart=true\n\
+stderr_logfile=/app/logs/main.err.log\n\
+stdout_logfile=/app/logs/main.out.log\n\
+environment=PYTHONUNBUFFERED=1\n\
+startsecs=10\n\
+\n\
+[program:text_search_api]\n\
+command=python text_search_api.py\n\
+directory=/app\n\
+autostart=true\n\
+autorestart=true\n\
+stderr_logfile=/app/logs/text_search_api.err.log\n\
+stdout_logfile=/app/logs/text_search_api.out.log\n\
+environment=PYTHONUNBUFFERED=1\n\
+startsecs=10\n\
+\n\
+[program:image_identifier_api]\n\
+command=python api.py\n\
+directory=/app/image_identifier\n\
+autostart=true\n\
+autorestart=true\n\
+stderr_logfile=/app/logs/image_identifier_api.err.log\n\
+stdout_logfile=/app/logs/image_identifier_api.out.log\n\
+environment=PYTHONUNBUFFERED=1\n\
+startsecs=30\n\
+\n\
+[program:nightly_scraper]\n\
+command=python nightly_scraper_scheduler.py\n\
+directory=/app\n\
+autostart=true\n\
+autorestart=true\n\
+stderr_logfile=/app/logs/nightly_scraper.err.log\n\
+stdout_logfile=/app/logs/nightly_scraper.out.log\n\
+environment=PYTHONUNBUFFERED=1\n\
+startsecs=10' > /etc/supervisor/conf.d/supervisord.conf
 
 # Expose ports
+# 5000 - Main Flask app
+# 8001 - Text Search API
+# 8002 - Image Identifier API
+# 8080 - Reserved for Evolution API (external)
 EXPOSE 5000 8001 8002
 
-# Health check (checks the main flask app)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:5000/health || exit 1
 
-# Start via entrypoint script to handle initial setup (scraping/indexing) if needed
-CMD ["/app/entrypoint.sh"]
+# Run startup script
+CMD ["/app/startup.sh"]

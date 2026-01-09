@@ -66,8 +66,9 @@ def run_scraper():
         # Using Popen to stream output in real-time
         import sys
         
+        # NEVER clear DB during auto-init if we already pointed to user's DB
         process = subprocess.Popen(
-            ["python", "-u", "fast_scraper.py", "all", "true", "5"],
+            ["python", "-u", "fast_scraper.py", "all", "false", "5"],
             cwd="/app",
             stdout=sys.stdout,  # Stream directly to console
             stderr=sys.stderr,

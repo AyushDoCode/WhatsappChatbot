@@ -638,8 +638,8 @@ def webhook():
                     success = order_storage.save_order(order_data)
                     
                     if success:
-                        response = f"""🎉 *Order Confirmed!*
-ID: {order_data['order_id']}\n"""
+                        response = f"🎉 *Order Confirmed!*
+ID: {order_data['order_id']}\n"
                         response += "Our team will contact you within 24 hours. Thank you! 🙏"
                         whatsapp.send_message(phone_number, response)
                         orchestrator.clear_user_data(phone_number)

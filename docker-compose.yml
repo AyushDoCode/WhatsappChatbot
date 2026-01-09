@@ -1,29 +1,6 @@
 services:
   # ============================================================================
-  # MongoDB Database - STARTS FIRST
-  # ============================================================================
-  mongodb:
-    image: mongo:7.0
-    container_name: watchvine_mongodb
-    restart: always
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-      - mongodb_config:/data/configdb
-    environment:
-      - MONGO_INITDB_DATABASE=watchvine_refined
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    networks:
-      - watchvine_network
-
-  # ============================================================================
-  # Main Flask App - STARTS AFTER MONGODB
+  # Main Flask App
   # ============================================================================
   main_app:
     build:
@@ -39,8 +16,8 @@ services:
       - shared_index:/app
     environment:
       - PYTHONUNBUFFERED=1
-      - MONGO_URI=mongodb://mongodb:27017/
-      - MONGODB_URI=mongodb://mongodb:27017/
+      - MONGO_URI=${MONGO_URI}
+      - MONGODB_URI=${MONGODB_URI}
       - DATABASE_NAME=watchvine_refined
       - COLLECTION_NAME=products
       - MONGODB_DB=whatsapp_bot
@@ -56,9 +33,7 @@ services:
       - GOOGLE_APPS_SCRIPT_SECRET=${GOOGLE_APPS_SCRIPT_SECRET}
       - GOOGLE_SHEET_URL=${GOOGLE_SHEET_URL}
       - IMAGE_FORWARD_NUMBER=${IMAGE_FORWARD_NUMBER}
-    depends_on:
-      mongodb:
-        condition: service_healthy
+    # Removed 'mongodb' dependency
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
@@ -83,13 +58,11 @@ services:
       - ./logs:/app/logs
     environment:
       - PYTHONUNBUFFERED=1
-      - MONGO_URI=mongodb://mongodb:27017/
-      - MONGODB_URI=mongodb://mongodb:27017/
+      - MONGO_URI=${MONGO_URI}
+      - MONGODB_URI=${MONGODB_URI}
       - DATABASE_NAME=watchvine_refined
       - COLLECTION_NAME=products
     depends_on:
-      mongodb:
-        condition: service_healthy
       main_app:
         condition: service_started
     healthcheck:
@@ -117,13 +90,11 @@ services:
       - shared_index:/app
     environment:
       - PYTHONUNBUFFERED=1
-      - MONGO_URI=mongodb://mongodb:27017/
-      - MONGODB_URI=mongodb://mongodb:27017/
+      - MONGO_URI=${MONGO_URI}
+      - MONGODB_URI=${MONGODB_URI}
       - DATABASE_NAME=watchvine_refined
       - COLLECTION_NAME=products
     depends_on:
-      mongodb:
-        condition: service_healthy
       main_app:
         condition: service_started
     healthcheck:
@@ -136,10 +107,6 @@ services:
       - watchvine_network
 
 volumes:
-  mongodb_data:
-    driver: local
-  mongodb_config:
-    driver: local
   shared_index:
     driver: local
 

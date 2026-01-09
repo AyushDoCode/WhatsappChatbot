@@ -551,7 +551,7 @@ Please wait... 📸"""
             if end_index < total_found:
                 remaining = total_found - end_index
                 completion_msg = f"""📦 {remaining} more products available!
-💬 Type 'YES' to see more {keyword}
+💬 Type 'YES' to see more {keyword} 
 """
 
             # Append Gujarati Text (Transliterated instruction followed by Gujarati script)

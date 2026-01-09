@@ -167,7 +167,7 @@ Return ONLY JSON.
                     model=self.model_name,
                     display_name=cache_name,
                     system_instruction=system_instruction,
-                    ttl=datetime.timedelta(hours=2) # Cache for 2 hours
+                    ttl=timedelta(hours=2) # Cache for 2 hours
                 )
                 logger.info(f"✅ Cache created: {self.cached_content.name}")
             

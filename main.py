@@ -11,8 +11,8 @@ from datetime import datetime, timedelta
 from typing import Dict
 from pymongo import MongoClient
 from dotenv import load_dotenv
-import google.generativeai as genai
-from google.generativeai import caching
+import google.genai as genai
+from google.genai import caching
 
 # Import custom modules
 from system_prompt_config import get_system_prompt

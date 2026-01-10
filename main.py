@@ -168,7 +168,16 @@ class ConversationAgent:
             # In production, you'd list and find by name to avoid duplication
             # For this simplified version, we'll try to create it.
 
-            logger.info("🆕 Creating/Updating Agent Context Cache...")
+            # Estimate token count (rough: ~4 chars per token)
+            estimated_tokens = len(self.system_prompt) / 4
+            
+            # Only use cache if content is large enough (>1024 tokens required by Google)
+            if estimated_tokens < 1000:
+                logger.info(f"⚠️ System prompt too small for caching (~{int(estimated_tokens)} tokens, need 1024+)")
+                logger.info("✅ Using standard request (no cache) - saves API calls anyway!")
+                return None
+            
+            logger.info(f"🆕 Creating/Updating Agent Context Cache (~{int(estimated_tokens)} tokens)...")
             self.cached_content = caching.CachedContent.create(
                 model=self.model_name,
                 display_name=self.cache_name,
@@ -558,8 +567,7 @@ Please wait... 📸"""
 
             if end_index < total_found:
                 remaining = total_found - end_index
-                completion_msg = f"""📦 {remaining} more products available!
-💬 Type 'YES' to see more {keyword} 
+                completion_msg = f"""બીજી પ્રોડક્ટ પણ છે અમારી પાસે, જો તમારે જોવી હોય તો હું બતાવું? 😊
 """
 
             # Append Gujarati Text (Transliterated instruction followed by Gujarati script)

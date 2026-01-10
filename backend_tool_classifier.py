@@ -187,16 +187,25 @@ Return ONLY JSON.
                 self.cached_content = existing_cache
             else:
                 # Create new cache
-                logger.info("🆕 Creating new context cache...")
                 system_instruction = self._get_static_instructions()
                 
-                self.cached_content = caching.CachedContent.create(
-                    model=self.model_name,
-                    display_name=cache_name,
-                    system_instruction=system_instruction,
-                    ttl=timedelta(hours=2) # Cache for 2 hours
-                )
-                logger.info(f"✅ Cache created: {self.cached_content.name}")
+                # Estimate token count (rough: ~4 chars per token)
+                estimated_tokens = len(system_instruction) / 4
+                
+                # Only use cache if content is large enough (>1024 tokens required)
+                if estimated_tokens < 1000:
+                    logger.info(f"⚠️ Content too small for caching (~{int(estimated_tokens)} tokens, need 1024+)")
+                    logger.info("✅ Using standard request (no cache)")
+                    self.cached_content = None
+                else:
+                    logger.info(f"🆕 Creating new context cache (~{int(estimated_tokens)} tokens)...")
+                    self.cached_content = caching.CachedContent.create(
+                        model=self.model_name,
+                        display_name=cache_name,
+                        system_instruction=system_instruction,
+                        ttl=timedelta(hours=2) # Cache for 2 hours
+                    )
+                    logger.info(f"✅ Cache created: {self.cached_content.name}")
             
             self.last_cache_update = current_time
             return self.cached_content
@@ -269,9 +278,9 @@ Return ONLY JSON.
 
     def _build_context_string(self, history: list, current_message: str, search_context: dict) -> str:
         """Builds the dynamic string for the request"""
-        # Format history
+        # Format history - increased to 30 messages for better context
         hist_str = ""
-        for msg in history[-10:]:
+        for msg in history[-30:]:
             role = msg.get('role', 'user')
             content = msg.get('content', '')
             hist_str += f"{role.upper()}: {content}\n"

@@ -611,28 +611,24 @@ def handle_image_message(phone_number: str, message_info: dict, instance_name: s
              img_msg = message_info['imageMessage']
              logger.info(f"🔍 ImageMessage keys: {list(img_msg.keys())}")
              
-             # Try to get URL from imageMessage
-             possible_url = img_msg.get('url')
-             if possible_url:
+             # PRIORITY 1: Try jpegThumbnail first (it's already decrypted!)
+             if 'jpegThumbnail' in img_msg:
                  try:
-                     logger.info(f"📥 Attempting to download image from imageMessage URL: {possible_url[:50]}...")
-                     img_response = requests.get(possible_url, timeout=15)
-                     if img_response.status_code == 200:
-                         image_data = img_response.content
-                         logger.info(f"✅ Downloaded image from imageMessage URL, size: {len(image_data)} bytes")
-                     else:
-                         logger.warning(f"❌ Failed to download image from URL. Status: {img_response.status_code}")
-                 except Exception as e:
-                     logger.error(f"❌ Error downloading image from URL: {e}")
-
-             # If still no image, try jpegThumbnail (base64)
-             if not image_data and 'jpegThumbnail' in img_msg:
-                 try:
-                     logger.info("📥 Using jpegThumbnail as fallback")
+                     logger.info("📥 Using jpegThumbnail (pre-decrypted)")
                      image_data = base64.b64decode(img_msg['jpegThumbnail'])
                      logger.info(f"✅ Decoded jpegThumbnail, size: {len(image_data)} bytes")
                  except Exception as e:
                      logger.error(f"❌ Error decoding jpegThumbnail: {e}")
+             
+             # PRIORITY 2: Try URL download (but note: it's encrypted and needs decryption)
+             if not image_data:
+                 logger.warning("⚠️ jpegThumbnail not available or failed")
+                 logger.warning("⚠️ URL-downloaded images from WhatsApp are encrypted and require decryption")
+                 logger.warning("⚠️ Skipping URL download - would need mediaKey to decrypt")
+                 # Note: The URL image is encrypted. To use it, you'd need to:
+                 # 1. Download the encrypted data
+                 # 2. Use mediaKey + fileEncSha256 to decrypt it
+                 # This requires WhatsApp's encryption libraries
 
         if not image_data:
             logger.error(f"Could not extract image data. Keys in message_info: {list(message_info.keys())}")

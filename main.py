@@ -578,6 +578,7 @@ def handle_image_message(phone_number: str, message_info: dict, instance_name: s
     import base64
 
     logger.info(f"📸 Received image from {phone_number}")
+    logger.info(f"🔍 Message info keys: {list(message_info.keys())}")
     whatsapp.send_message(phone_number, "🔍 Searching for similar products... Please wait.")
 
     try:
@@ -586,28 +587,58 @@ def handle_image_message(phone_number: str, message_info: dict, instance_name: s
 
         # Check if base64 is directly provided (Evolution API often does this if configured)
         if 'base64' in message_info:
+            logger.info("✅ Found base64 in message_info")
             image_data = base64.b64decode(message_info['base64'])
 
         # If no base64, try to download from URL (if public) or handle otherwise
         elif 'url' in message_info:
+            logger.info("✅ Found url in message_info, attempting download...")
             img_url = message_info['url']
             try:
                 # This might fail if the URL requires auth, but worth a try if Evolution proxies it
                 img_response = requests.get(img_url, timeout=10)
                 if img_response.status_code == 200:
                     image_data = img_response.content
+                    logger.info(f"✅ Downloaded image from URL, size: {len(image_data)} bytes")
+                else:
+                    logger.warning(f"❌ Failed to download from URL, status: {img_response.status_code}")
             except Exception as e:
-                logger.error(f"Failed to download image from URL: {e}")
+                logger.error(f"❌ Failed to download image from URL: {e}")
 
         # If still no image data, try to get it from the message object directly (standard WA structure)
         if not image_data and 'imageMessage' in message_info:
+             logger.info("✅ Found imageMessage in message_info")
              img_msg = message_info['imageMessage']
-             # Sometimes Evolution puts base64 in 'jpegThumbnail' (low res) or we might need to fetch
-             # If we can't get the full image, we might fail here.
-             # For now, let's assume Evolution API is configured to send base64 or we can't process it easily without extra API calls.
-             pass
+             logger.info(f"🔍 ImageMessage keys: {list(img_msg.keys())}")
+             
+             # Try to get URL from imageMessage
+             possible_url = img_msg.get('url')
+             if possible_url:
+                 try:
+                     logger.info(f"📥 Attempting to download image from imageMessage URL: {possible_url[:50]}...")
+                     img_response = requests.get(possible_url, timeout=15)
+                     if img_response.status_code == 200:
+                         image_data = img_response.content
+                         logger.info(f"✅ Downloaded image from imageMessage URL, size: {len(image_data)} bytes")
+                     else:
+                         logger.warning(f"❌ Failed to download image from URL. Status: {img_response.status_code}")
+                 except Exception as e:
+                     logger.error(f"❌ Error downloading image from URL: {e}")
+
+             # If still no image, try jpegThumbnail (base64)
+             if not image_data and 'jpegThumbnail' in img_msg:
+                 try:
+                     logger.info("📥 Using jpegThumbnail as fallback")
+                     image_data = base64.b64decode(img_msg['jpegThumbnail'])
+                     logger.info(f"✅ Decoded jpegThumbnail, size: {len(image_data)} bytes")
+                 except Exception as e:
+                     logger.error(f"❌ Error decoding jpegThumbnail: {e}")
 
         if not image_data:
+            logger.error(f"Could not extract image data. Keys in message_info: {list(message_info.keys())}")
+            if 'imageMessage' in message_info:
+                 logger.error(f"Keys in imageMessage: {list(message_info['imageMessage'].keys())}")
+            
             whatsapp.send_message(phone_number, "⚠️ Sorry, I couldn't process this image. Please try again.")
             return
 
@@ -673,6 +704,14 @@ def handle_image_message(phone_number: str, message_info: dict, instance_name: s
 
 
 # ============================================================================
+# HEALTH CHECK
+# ============================================================================
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "ok"}), 200
+
+# ============================================================================
 # WEBHOOK ENDPOINT
 # ============================================================================
 
@@ -711,10 +750,16 @@ def webhook():
                 # We'll pass both `message_data` (root) and `message_info` (nested) merged or just handle in function
                 # Ideally, look for where base64 is.
 
+                logger.info(f"🖼️ Image message detected, preparing to handle...")
+                logger.info(f"🔍 message_data keys: {list(message_data.keys())}")
+                
                 # Checking if base64 is at root data level (common in Evolution)
                 payload_to_pass = message_info
                 if 'base64' in message_data:
+                    logger.info("✅ base64 found in message_data root")
                     payload_to_pass = message_data # Use root data if it has base64
+                else:
+                    logger.info("⚠️ base64 NOT in message_data root, using message_info")
 
                 handle_image_message(phone_number, payload_to_pass, INSTANCE_NAME)
                 return jsonify({"status": "success"}), 200

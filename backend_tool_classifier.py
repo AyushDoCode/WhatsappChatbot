@@ -155,7 +155,7 @@ Return ONLY JSON.
             
             if existing_cache:
                 # Update expiration? Or just use it.
-                # existing_cache.update(ttl=datetime.timedelta(hours=2))
+                # existing_cache.update(ttl=timedelta(hours=2))
                 logger.info(f"♻️ Using existing cache: {existing_cache.name}")
                 self.cached_content = existing_cache
             else:

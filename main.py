@@ -585,10 +585,16 @@ def handle_image_message(phone_number: str, message_info: dict, instance_name: s
         # 1. Extract Image Data
         image_data = None
 
-        # Check if base64 is directly provided (Evolution API often does this if configured)
+        # PRIORITY 0: Check if base64 is directly provided (Evolution API often does this if configured)
+        # This is usually higher quality than jpegThumbnail
         if 'base64' in message_info:
-            logger.info("✅ Found base64 in message_info")
-            image_data = base64.b64decode(message_info['base64'])
+            logger.info("✅ Found base64 in message_info (HIGHEST QUALITY)")
+            try:
+                image_data = base64.b64decode(message_info['base64'])
+                logger.info(f"✅ Decoded base64 from message_info, size: {len(image_data)} bytes")
+            except Exception as e:
+                logger.error(f"❌ Error decoding base64: {e}")
+                image_data = None
 
         # If no base64, try to download from URL (if public) or handle otherwise
         elif 'url' in message_info:

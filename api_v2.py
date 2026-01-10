@@ -32,9 +32,9 @@ HASH_INDEX_FILE = "hash_index.pkl"  # New: perceptual hash index
 
 # Adjusted thresholds for hybrid system
 EXACT_MATCH_HASH_THRESHOLD = 1  # Hamming distance <= 1 = exact match (99.9% accurate)
-SIMILARITY_THRESHOLD_HIGH = 0.70  # Lowered because pHash handles exact matches
-SIMILARITY_THRESHOLD_MEDIUM = 0.60  
-SIMILARITY_THRESHOLD_LOW = 0.50  
+SIMILARITY_THRESHOLD_HIGH = 0.75  # High confidence - very similar (98%+)
+SIMILARITY_THRESHOLD_MEDIUM = 0.65  # Medium confidence - similar
+SIMILARITY_THRESHOLD_LOW = 0.55  # Low confidence - possibly similar  
 MAX_IMAGE_SIZE_MB = 10
 TARGET_IMAGE_SIZE = (224, 224)
 
@@ -273,13 +273,14 @@ def search_similar_product(query_embedding: np.ndarray, k: int = 150, category_f
         top3_avg = float(np.mean(sorted(scores, reverse=True)[:3]))  # Convert numpy float to Python float
         vote_count = int(len(scores))  # Ensure it's a Python int
         
-        # Improved scoring
-        combined_score = (max_score * 0.7) + (avg_score * 0.15) + (top3_avg * 0.15)
+        # Improved scoring - weight the best match heavily for exact database images
+        combined_score = (max_score * 0.8) + (avg_score * 0.10) + (top3_avg * 0.10)
         
-        if vote_count >= 3:
-            combined_score *= 1.05
-        elif vote_count >= 5:
+        # Boost products with multiple matching images (more confident)
+        if vote_count >= 5:
             combined_score *= 1.10
+        elif vote_count >= 3:
+            combined_score *= 1.05
         
         results.append({
             'product_name': prod_data['product_name'],

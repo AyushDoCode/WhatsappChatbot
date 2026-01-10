@@ -830,12 +830,8 @@ def webhook():
                     logger.info(f"📋 Pending products context: {keyword} ({sent_count}/{total_found})")
                     logger.info(f"🤖 Asking AI to check if user wants more products...")
                     
-                    # Use AI to detect if user wants more (pass context to backend classifier)
-                    action, metadata = orchestrator.analyze_message(
-                        conversation, 
-                        phone_number, 
-                        context={'has_pending_products': True, 'keyword': keyword}
-                    )
+                    # Use AI to detect if user wants more (backend classifier uses search_context automatically)
+                    action, metadata = orchestrator.analyze_message(conversation, phone_number)
                     
                     logger.info(f"Action: {action}")
                     

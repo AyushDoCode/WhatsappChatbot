@@ -618,26 +618,33 @@ def handle_image_message(phone_number: str, message_info: dict, instance_name: s
                      thumbnail = img_msg['jpegThumbnail']
                      logger.info(f"🔍 jpegThumbnail type: {type(thumbnail)}")
                      
-                     # Check if it's a dict (Evolution API might wrap it)
+                     # Check if it's a dict with numeric keys (byte array as dict)
                      if isinstance(thumbnail, dict):
-                         logger.info(f"🔍 jpegThumbnail is dict with keys: {list(thumbnail.keys())}")
-                         # Try to get base64 data from dict
-                         if 'data' in thumbnail:
+                         # Check if keys are numeric (array-like dict)
+                         first_key = next(iter(thumbnail.keys())) if thumbnail else None
+                         if first_key and first_key.isdigit():
+                             logger.info(f"🔍 jpegThumbnail is byte array as dict (length: {len(thumbnail)})")
+                             # Convert dict to bytes array
+                             byte_array = [thumbnail[str(i)] for i in range(len(thumbnail))]
+                             image_data = bytes(byte_array)
+                             logger.info(f"✅ Converted dict to bytes, size: {len(image_data)} bytes")
+                         elif 'data' in thumbnail:
                              thumbnail = thumbnail['data']
                          elif 'base64' in thumbnail:
                              thumbnail = thumbnail['base64']
                      
-                     # Now decode it
-                     if isinstance(thumbnail, str):
-                         image_data = base64.b64decode(thumbnail)
-                         logger.info(f"✅ Decoded jpegThumbnail, size: {len(image_data)} bytes")
-                     elif isinstance(thumbnail, bytes):
-                         image_data = thumbnail
-                         logger.info(f"✅ Got jpegThumbnail as bytes, size: {len(image_data)} bytes")
-                     else:
-                         logger.error(f"❌ jpegThumbnail is unexpected type: {type(thumbnail)}")
+                     # If not already converted, try other formats
+                     if not image_data:
+                         if isinstance(thumbnail, str):
+                             image_data = base64.b64decode(thumbnail)
+                             logger.info(f"✅ Decoded jpegThumbnail from base64, size: {len(image_data)} bytes")
+                         elif isinstance(thumbnail, bytes):
+                             image_data = thumbnail
+                             logger.info(f"✅ Got jpegThumbnail as bytes, size: {len(image_data)} bytes")
+                         else:
+                             logger.error(f"❌ jpegThumbnail is unexpected type: {type(thumbnail)}")
                  except Exception as e:
-                     logger.error(f"❌ Error decoding jpegThumbnail: {e}")
+                     logger.error(f"❌ Error processing jpegThumbnail: {e}")
              
              # PRIORITY 2: Try URL download (but note: it's encrypted and needs decryption)
              if not image_data:

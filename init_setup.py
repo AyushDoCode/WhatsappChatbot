@@ -107,11 +107,11 @@ def run_indexer():
     logger.info("=" * 70)
     
     try:
-        # Run indexer.py with live output streaming
+        # Run indexer_v2.py with live output streaming (uses perceptual hashing for exact matches)
         import sys
         
         process = subprocess.Popen(
-            ["python", "-u", "indexer.py"],
+            ["python", "-u", "indexer_v2.py"],
             cwd="/app",
             stdout=sys.stdout,  # Stream directly to console
             stderr=sys.stderr,

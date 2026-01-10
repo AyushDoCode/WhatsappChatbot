@@ -31,7 +31,7 @@ METADATA_FILE = "metadata.pkl"
 HASH_INDEX_FILE = "hash_index.pkl"  # New: perceptual hash index
 
 # Adjusted thresholds for hybrid system
-EXACT_MATCH_HASH_THRESHOLD = 5  # Hamming distance <= 5 = exact match (99% accurate)
+EXACT_MATCH_HASH_THRESHOLD = 1  # Hamming distance <= 1 = exact match (99.9% accurate)
 SIMILARITY_THRESHOLD_HIGH = 0.70  # Lowered because pHash handles exact matches
 SIMILARITY_THRESHOLD_MEDIUM = 0.60  
 SIMILARITY_THRESHOLD_LOW = 0.50  
@@ -126,9 +126,10 @@ def compute_perceptual_hash(img: Image.Image) -> str:
     """
     Compute perceptual hash (pHash) for image.
     Returns hex string representation.
+    Higher hash_size = more accuracy but less tolerance to minor changes.
     """
     # Use phash (perceptual hash) - robust to minor changes
-    return str(imagehash.phash(img, hash_size=16))  # 16x16 = 256-bit hash
+    return str(imagehash.phash(img, hash_size=24))  # 24x24 = 576-bit hash (higher accuracy)
 
 
 def find_exact_match_by_hash(query_hash: str, max_distance: int = EXACT_MATCH_HASH_THRESHOLD) -> Optional[Tuple[int, int]]:

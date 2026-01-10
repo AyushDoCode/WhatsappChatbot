@@ -107,6 +107,8 @@ os.makedirs(TEMP_FOLDER, exist_ok=True)
 class SearchRequest(BaseModel):
     query: str  # e.g., "rolex watch", "michael kors bag"
     max_results: int = 10
+    min_price: float = None  # Optional: minimum price filter
+    max_price: float = None  # Optional: maximum price filter
 
 
 def download_image_from_url(url: str, save_path: str) -> bool:
@@ -127,7 +129,7 @@ def download_image_from_url(url: str, save_path: str) -> bool:
         return False
 
 
-def search_products_by_text(query: str, max_results: int = 10, category_filter: str = None) -> List[Dict]:
+def search_products_by_text(query: str, max_results: int = 10, category_filter: str = None, min_price: float = None, max_price: float = None) -> List[Dict]:
     """
     Search products in MongoDB with SMART keyword matching + Brand name normalization + Category filtering.
     ALL keywords must be present in product name.
@@ -194,6 +196,27 @@ def search_products_by_text(query: str, max_results: int = 10, category_filter: 
         and_conditions.append({"category_key": category_filter})
         print(f"📂 Category filter applied: {category_filter}")
     
+    # Add price range filter if provided
+    if min_price is not None or max_price is not None:
+        price_conditions = {}
+        if min_price is not None:
+            price_conditions["$gte"] = str(min_price)  # MongoDB stores price as string
+            print(f"💰 Min price filter: ₹{min_price}")
+        if max_price is not None:
+            price_conditions["$lte"] = str(max_price)
+            print(f"💰 Max price filter: ₹{max_price}")
+        
+        # Need to handle string comparison properly
+        # Convert to float for comparison
+        and_conditions.append({
+            "$expr": {
+                "$and": [
+                    {"$gte": [{"$toDouble": "$price"}, min_price if min_price else 0]},
+                    {"$lte": [{"$toDouble": "$price"}, max_price if max_price else 999999]}
+                ]
+            }
+        })
+    
     results = list(collection.find(
         {"$and": and_conditions},
         {"name": 1, "price": 1, "image_urls": 1, "url": 1, "category": 1, "category_key": 1}
@@ -235,7 +258,7 @@ async def search_products(request: SearchRequest):
         raise HTTPException(status_code=400, detail="Query must be at least 2 characters")
     
     # Search in MongoDB
-    products = search_products_by_text(request.query, request.max_results)
+    products = search_products_by_text(request.query, request.max_results, None, request.min_price, request.max_price)
     
     if not products:
         return JSONResponse(
@@ -287,7 +310,7 @@ async def search_and_download_images(request: SearchRequest):
         raise HTTPException(status_code=400, detail="Query must be at least 2 characters")
     
     # Search products
-    products = search_products_by_text(request.query, request.max_results)
+    products = search_products_by_text(request.query, request.max_results, None, request.min_price, request.max_price)
     
     if not products:
         raise HTTPException(
@@ -401,7 +424,7 @@ async def search_and_get_images(request: SearchRequest):
         raise HTTPException(status_code=400, detail="Query must be at least 2 characters")
     
     # Search products
-    products = search_products_by_text(request.query, request.max_results)
+    products = search_products_by_text(request.query, request.max_results, None, request.min_price, request.max_price)
     
     if not products:
         return {

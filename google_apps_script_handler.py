@@ -6,10 +6,89 @@ Sends order data to Google Apps Script Web App instead of direct Google Sheets A
 import os
 import requests
 import logging
+import re
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+
+def validate_order_data(order_data: Dict) -> Tuple[bool, str]:
+    """
+    Validate order data to detect fake/temp/garbage data
+    
+    Returns:
+        (is_valid, reason): True if valid, False with reason if invalid
+    """
+    name = order_data.get('customer_name', '').strip()
+    phone = order_data.get('phone_number', '').strip()
+    address = order_data.get('address', '').strip()
+    
+    # Validate Name
+    if not name or len(name) < 2:
+        return False, "Name is too short"
+    
+    # Check for garbage/test names
+    garbage_patterns = ['test', 'xyz', 'abc', 'asdf', 'qwerty', 'aaaa', 'bbbb', '123']
+    name_lower = name.lower()
+    if any(pattern in name_lower for pattern in garbage_patterns):
+        if len(name) < 6:  # Short names with test patterns are suspicious
+            return False, "Name appears to be a test/fake name"
+    
+    # Check for repeated characters (aaaa, bbbb)
+    if re.search(r'(.)\1{3,}', name):
+        return False, "Name contains repeated characters (suspicious)"
+    
+    # Validate Phone Number
+    if not phone:
+        return False, "Phone number is missing"
+    
+    # Remove non-digits
+    phone_digits = re.sub(r'\D', '', phone)
+    
+    if len(phone_digits) != 10:
+        return False, f"Phone number must be 10 digits (got {len(phone_digits)})"
+    
+    # Check for repeated digits (9999999999, 1111111111, 1234567890)
+    if phone_digits[0] * 10 == phone_digits:
+        return False, "Phone number has all same digits (suspicious)"
+    
+    if phone_digits == "1234567890" or phone_digits == "0123456789":
+        return False, "Phone number is a test sequence"
+    
+    # Check for too many repeated sequences
+    if re.search(r'(\d)\1{5,}', phone_digits):
+        return False, "Phone number has too many repeated digits"
+    
+    # Validate Address
+    if not address or len(address) < 10:
+        return False, "Address is too short (minimum 10 characters)"
+    
+    # Check for random character sequences
+    garbage_address = ['asdf', 'qwerty', 'sdfgh', 'fghj', 'zxcv', 'sfhskjfhs', 
+                       'shaflesnfk', 'hadohwifk', 'asdasd', 'sdfsdf']
+    address_lower = address.lower()
+    for pattern in garbage_address:
+        if pattern in address_lower:
+            return False, f"Address contains random/meaningless text: '{pattern}'"
+    
+    # Check for too many consonants in a row (gibberish)
+    if re.search(r'[bcdfghjklmnpqrstvwxyz]{8,}', address_lower):
+        return False, "Address contains gibberish (too many consonants)"
+    
+    # Validate Pincode (if present in address)
+    pincode_match = re.search(r'\b\d{6}\b', address)
+    if pincode_match:
+        pincode = pincode_match.group()
+        # Check for repeated digits in pincode
+        if pincode[0] * 6 == pincode:
+            return False, f"Pincode has all same digits: {pincode}"
+        # Check for obvious test pincodes
+        if pincode in ['123456', '111111', '000000', '999999']:
+            return False, f"Pincode appears to be fake: {pincode}"
+    
+    # All checks passed
+    return True, "Valid"
 
 
 class GoogleAppsScriptHandler:
@@ -56,7 +135,7 @@ class GoogleAppsScriptHandler:
                 - notes
         
         Returns:
-            bool: True if saved successfully
+            bool: True if saved successfully, False if invalid/failed
         """
         try:
             if not self.is_initialized:
@@ -66,6 +145,19 @@ class GoogleAppsScriptHandler:
                 logger.error(f"   secret_key present: {self.secret_key is not None}")
                 return False
             
+            # 🛡️ VALIDATE ORDER DATA BEFORE SAVING
+            logger.info(f"🛡️ Validating order data for: {order_data.get('order_id')}")
+            is_valid, reason = validate_order_data(order_data)
+            
+            if not is_valid:
+                logger.error(f"❌ VALIDATION FAILED: {reason}")
+                logger.error(f"   Name: {order_data.get('customer_name')}")
+                logger.error(f"   Phone: {order_data.get('phone_number')}")
+                logger.error(f"   Address: {order_data.get('address')}")
+                logger.error(f"🚫 ORDER NOT SAVED - Data appears fake/invalid")
+                return False
+            
+            logger.info(f"✅ Validation passed: {reason}")
             logger.info(f"📝 GOOGLE APPS SCRIPT - Preparing to save order: {order_data.get('order_id')}")
             logger.info(f"   🌐 Apps Script URL: {self.web_app_url[:50]}...")
             logger.info(f"   🔐 Secret key present: {bool(self.secret_key)}")

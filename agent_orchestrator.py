@@ -118,7 +118,12 @@ class AgentOrchestrator:
         
         logger.info(f"🔧 Backend Tool Classifier Decision: {tool}")
         
-        if tool == 'find_product':
+        if tool == 'show_more':
+            # AI detected user wants to see more from current search
+            logger.info(f"🔄 Backend AI detected: User wants to see more products")
+            return ('show_more', {})
+        
+        elif tool == 'find_product':
             # Backend AI detected product search and extracted keyword + range
             keyword = decision.get('keyword', '')
             range_str = decision.get('range', '0-10')

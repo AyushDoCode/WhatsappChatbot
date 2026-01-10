@@ -69,27 +69,36 @@ TOOLS & OUTPUT RULES:
    - User asks for categories without specific brand ("show watches", "bags dikhao")
    - User is just chatting
    - Search result pagination is complete ("All products shown")
+   - User says "yes/no/okay" but there's NO pending search context
 
-2. find_product
-   JSON: {"tool": "find_product", "keyword": "brand+type", "range": "X-Y"}
+2. show_more
+   JSON: {"tool": "show_more"}
+   Use when:
+   - User wants to see more products from CURRENT search
+   - User says: "yes", "okay", "ha", "show more", "more", "next", "aur dikhao", "હા"
+   - ONLY if SEARCH INFO shows pending products (sent_count < total_found)
+   - This is for continuing the SAME search, NOT starting a new one
+   
+3. find_product
+   JSON: {"tool": "find_product", "keyword": "brand+type", "min_price": null, "max_price": null}
    Use when:
    - User asks for specific brand or product ("Rolex watch", "Gucci bag")
-   - User asks to see "more" products after a search
-   
-   RANGE & PAGINATION RULES (CRITICAL):
-   - "range" format is "Start-End" (0-based index)
-   - First search: "0-10"
-   - "Show more"/"Next"/"Aur dikhao": Increment range by 10 (e.g., 10-20, 20-30)
-   - Check the provided "SEARCH INFO" in context to determine the next range.
-   - Max range: Up to 300.
-   - If User says "show more" but context shows all products sent: Return {"tool": "ai_chat"}
+   - User mentions price/budget ("2000-5000 ma", "3000 ni ander", "5000 thi upar")
    
    KEYWORD RULES:
    - ALWAYS include the category type.
    - "Rolex" -> "rolex watch"
    - "Gucci" -> "gucci bag" (or context appropriate)
    - If user says "koi bhi" (any): Pick a popular brand + category (e.g., "gucci bag")
-   - Keep the SAME keyword as previous search when paginating.
+   
+   PRICE DETECTION (SMART):
+   Extract price from user message:
+   - "2000-5000 ma watches" -> {"keyword": "watches", "min_price": 2000, "max_price": 5000}
+   - "3000 ni ander bag" -> {"keyword": "bag", "max_price": 3000}
+   - "5000 thi upar rolex" -> {"keyword": "rolex watch", "min_price": 5000}
+   - "under 4000" -> {"max_price": 4000}
+   - "above 10000" -> {"min_price": 10000}
+   - No price mentioned -> {"min_price": null, "max_price": null}
 
 3. send_all_images
    JSON: {"tool": "send_all_images", "product_name": "exact name"}
@@ -106,15 +115,33 @@ TOOLS & OUTPUT RULES:
 
 EXAMPLES:
 Input: "rolex watch"
-Output: {"tool": "find_product", "keyword": "rolex watch", "range": "0-10"}
+Output: {"tool": "find_product", "keyword": "rolex watch", "min_price": null, "max_price": null}
+
+Input: "2000-5000 ma watches"
+Output: {"tool": "find_product", "keyword": "watches", "min_price": 2000, "max_price": 5000}
+
+Input: "3000 thi niche bag"
+Output: {"tool": "find_product", "keyword": "bag", "min_price": null, "max_price": 3000}
+
+Input: "5000 thi upar rolex"
+Output: {"tool": "find_product", "keyword": "rolex watch", "min_price": 5000, "max_price": null}
+
+Input: "yes" (Context: Last search 'rolex watch', sent 10/50)
+Output: {"tool": "show_more"}
 
 Input: "show more" (Context: Last search 'rolex watch', sent 10/50)
-Output: {"tool": "find_product", "keyword": "rolex watch", "range": "10-20"}
+Output: {"tool": "show_more"}
 
-Input: "aur dikhao" (Context: Last search 'gucci bag', sent 140/150)
-Output: {"tool": "find_product", "keyword": "gucci bag", "range": "140-150"}
+Input: "okay" (Context: Last search 'gucci bag', sent 140/150)
+Output: {"tool": "show_more"}
+
+Input: "ha" (Context: Last search 'fossil watch', sent 5/45)
+Output: {"tool": "show_more"}
 
 Input: "more" (Context: Last search 'rolex watch', sent 150/150)
+Output: {"tool": "ai_chat"}
+
+Input: "yes" (Context: No pending products)
 Output: {"tool": "ai_chat"}
 
 Input: "watches chahiye"
@@ -257,9 +284,11 @@ Return ONLY JSON.
             total_found = search_context.get('total_found', 0)
             
             if keyword and total_found > 0:
-                next_start = sent_count
-                next_end = sent_count + 10
-                search_info = f"\n[SEARCH INFO]\nLast Keyword: '{keyword}'\nProducts Sent: {sent_count}/{total_found}\nNext Range Suggestion: '{next_start}-{next_end}'\n"
+                remaining = total_found - sent_count
+                if remaining > 0:
+                    search_info = f"\n[SEARCH INFO - PENDING PRODUCTS]\nLast Search: '{keyword}'\nProducts Sent: {sent_count}/{total_found}\nRemaining: {remaining} products\nSTATUS: User has PENDING products from '{keyword}' search\n"
+                else:
+                    search_info = f"\n[SEARCH INFO - COMPLETE]\nLast Search: '{keyword}'\nAll {total_found} products already shown\nSTATUS: No pending products\n"
 
         return f"""
 CONVERSATION HISTORY:

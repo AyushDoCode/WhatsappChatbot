@@ -476,7 +476,7 @@ def detect_category_from_query(query: str) -> str:
     if 'watch' in query_lower: return 'mens_watch'
     return None
 
-def send_product_images_v2(keyword: str, phone_number: str, start_index: int = 0, batch_size: int = 10):
+def send_product_images_v2(keyword: str, phone_number: str, start_index: int = 0, batch_size: int = 10, min_price: float = None, max_price: float = None):
     """Search products and send limited batch"""
     import requests
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -490,6 +490,14 @@ def send_product_images_v2(keyword: str, phone_number: str, start_index: int = 0
         SEARCH_API_URL = os.getenv("TEXT_SEARCH_API_URL", "http://text_search_api:8001")
         search_payload = {"query": keyword, "max_results": 50}
         if category_key: search_payload["category_filter"] = category_key
+        
+        # Add price filters if provided
+        if min_price is not None:
+            search_payload["min_price"] = min_price
+            logger.info(f"💰 Min price filter: ₹{min_price}")
+        if max_price is not None:
+            search_payload["max_price"] = max_price
+            logger.info(f"💰 Max price filter: ₹{max_price}")
 
         response = requests.post(f"{SEARCH_API_URL}/search/images-list", json=search_payload, timeout=30)
 
@@ -801,20 +809,58 @@ def webhook():
             if not from_me and conversation:
                 logger.info(f"Message from {phone_number}: {conversation[:50]}...")
 
-                # Analyze with Orchestrator (BackendToolClassifier)
-                action, metadata = orchestrator.analyze_message(conversation, phone_number)
-                logger.info(f"Action: {action}")
+                # ===== CHECK IF USER WANTS MORE PRODUCTS (AI-BASED) =====
+                # First check if there's a pending search context
+                search_ctx = orchestrator.get_search_context(phone_number)
+                
+                if search_ctx and search_ctx.get('sent_count', 0) < search_ctx.get('total_found', 0):
+                    # User has pending products - check if they want to see more using AI
+                    keyword = search_ctx.get('keyword', '')
+                    sent_count = search_ctx.get('sent_count', 0)
+                    total_found = search_ctx.get('total_found', 0)
+                    
+                    logger.info(f"📋 Pending products context: {keyword} ({sent_count}/{total_found})")
+                    logger.info(f"🤖 Asking AI to check if user wants more products...")
+                    
+                    # Use AI to detect if user wants more (pass context to backend classifier)
+                    action, metadata = orchestrator.analyze_message(
+                        conversation, 
+                        phone_number, 
+                        context={'has_pending_products': True, 'keyword': keyword}
+                    )
+                    
+                    logger.info(f"Action: {action}")
+                    
+                    # If AI detected user wants more from current search
+                    if action == 'show_more':
+                        logger.info(f"🤖 AI detected: User wants to see more {keyword} products!")
+                        
+                        # Send next batch of products (price filters from original search context if stored)
+                        success, new_total, new_sent = send_product_images_v2(
+                            keyword, phone_number, start_index=sent_count, batch_size=5,
+                            min_price=search_ctx.get('min_price'), max_price=search_ctx.get('max_price')
+                        )
+                        
+                        if success:
+                            orchestrator.save_search_context(phone_number, keyword, new_total, new_sent)
+                        
+                        return jsonify({"status": "success"}), 200
+                # ===== END PAGINATION CHECK =====
+                else:
+                    # No pending products - normal flow
+                    # Analyze with Orchestrator (BackendToolClassifier)
+                    action, metadata = orchestrator.analyze_message(conversation, phone_number)
+                    logger.info(f"Action: {action}")
 
                 if action == 'find_product':
                     keyword = metadata.get('keyword', '')
-                    range_str = metadata.get('range', '0-10')
-                    try:
-                        p = range_str.split('-')
-                        start_idx = int(p[0])
-                        end_idx = int(p[1])
-                        batch_size = end_idx - start_idx
-                    except:
-                        start_idx, batch_size = 0, 10
+                    min_price = metadata.get('min_price')
+                    max_price = metadata.get('max_price')
+                    
+                    # Log price filtering
+                    if min_price or max_price:
+                        price_range = f"₹{min_price or 0}-{max_price or '∞'}"
+                        logger.info(f"🔍 Searching '{keyword}' with price range: {price_range}")
 
                     search_ctx = orchestrator.get_search_context(phone_number)
                     if search_ctx and search_ctx.get('sent_count', 0) >= search_ctx.get('total_found', 0) and search_ctx.get('total_found', 0) > 0:
@@ -822,7 +868,8 @@ def webhook():
                         whatsapp.send_message(phone_number, all_shown_msg)
                     else:
                         success, total_found, sent_count = send_product_images_v2(
-                            keyword, phone_number, start_index=start_idx, batch_size=batch_size
+                            keyword, phone_number, start_index=0, batch_size=5, 
+                            min_price=min_price, max_price=max_price
                         )
                         if success:
                             orchestrator.save_search_context(phone_number, keyword, total_found, sent_count)

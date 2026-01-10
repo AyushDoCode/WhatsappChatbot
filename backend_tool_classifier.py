@@ -10,8 +10,8 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
-import google.genai as genai
-from google.genai import caching
+import google.generativeai as genai
+from google.generativeai import caching
 
 logger = logging.getLogger(__name__)
 

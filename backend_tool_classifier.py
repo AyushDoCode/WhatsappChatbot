@@ -80,6 +80,15 @@ Your decisions directly impact customer satisfaction - choose wisely!
 AVAILABLE TOOLS & DECISION LOGIC:
 ========================================
 
+⚠️ CRITICAL PRIORITY FOR PRICE RANGE DETECTION:
+ALWAYS CHECK FOR PRICE RANGE FIRST! If user message contains "range", "between", "to", "thi" with TWO prices and a category, use find_product_by_range.
+Examples:
+- "2000 thi 2500 watches" → find_product_by_range (NOT find_product!)
+- "between 2000 and 2500" → find_product_by_range
+- "2000-2500 range watches" → find_product_by_range
+- "2000 thi upar rolex" → find_product (only min price, has brand)
+- "3000 ni ander" → find_product (only max price, no explicit range)
+
 TOOLS & OUTPUT RULES:
 
 1. ai_chat
@@ -121,28 +130,31 @@ TOOLS & OUTPUT RULES:
    - "above 10000" -> {"min_price": 10000}
    - No price mentioned -> {"min_price": null, "max_price": null}
 
-3. find_product_by_range
-   JSON: {"tool": "find_product_by_range", "category": "watches", "min_price": 1500, "max_price": 2000, "product_name": "Range Search"}
-   Use when:
-   - User asks for products in a specific price range ("show me 1500 to 2000 range watches")
-   - User mentions "range", "between", "1500-2000" etc with product category
-   - YOU DECIDE THE PRICE RANGE based on user message
-   - Extract min and max price from user message and intelligently set category
-   - category can be: watches, bags, sunglasses, shoes, etc.
+3. find_product_by_range (PRIORITY #1 FOR PRICE RANGES!)
+   JSON: {"tool": "find_product_by_range", "category": "watches", "min_price": 2000, "max_price": 2500, "product_name": "₹2000-₹2500 watches"}
    
-   PRICE RANGE PATTERNS:
-   - "1500 to 2000" → min_price: 1500, max_price: 2000
-   - "1500-2000 range" → min_price: 1500, max_price: 2000
-   - "show 2000-5000 watches" → min_price: 2000, max_price: 5000
-   - "between 3000 and 8000 bags" → min_price: 3000, max_price: 8000
+   USE THIS WHEN:
+   ✓ User message has TWO prices (min AND max) + category
+   ✓ Contains keywords: "range", "between", "to", "thi" with prices
+   ✓ Pattern: NUMBER + KEYWORD + NUMBER + CATEGORY
    
-   RESPONSE FORMAT:
-   Always respond with complete JSON containing:
-   - tool: "find_product_by_range"
-   - category: Detected product category from user message
-   - min_price: Minimum price extracted from user message
-   - max_price: Maximum price extracted from user message
-   - product_name: A descriptive name like "₹{min_price}-{max_price} {category}"
+   DETECTION EXAMPLES (USE find_product_by_range):
+   - "2000 thi 2500 watches" ✓
+   - "between 2000 and 2500 watches" ✓
+   - "2000-2500 range watches" ✓
+   - "show me 2000 to 2500 watches" ✓
+   - "su tamari jode 2000 thi 2500 ni range ma watches" ✓
+   
+   DETECTION EXAMPLES (DO NOT use - use find_product instead):
+   - "2000 thi upar rolex" ✗ (only min + brand)
+   - "3000 ni ander bags" ✗ (only max, no range)
+   - "rolex 2000-2500" ✗ (brand + range = find_product)
+   
+   EXTRACTION RULES:
+   - Extract first number as min_price
+   - Extract second number as max_price
+   - Extract category from end of message (watches, bags, shoes, sunglasses, etc.)
+   - Format product_name as "₹{min}-₹{max} {category}"
 
 4. send_all_images
    JSON: {"tool": "send_all_images", "product_name": "exact name"}

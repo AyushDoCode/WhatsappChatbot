@@ -111,6 +111,13 @@ class SearchRequest(BaseModel):
     max_price: float = None  # Optional: maximum price filter
 
 
+class RangeSearchRequest(BaseModel):
+    category: str  # e.g., "watches", "bags", "shoes", "sunglasses"
+    min_price: float  # Minimum price for range
+    max_price: float  # Maximum price for range
+    max_results: int = 10  # Maximum results to return
+
+
 def download_image_from_url(url: str, save_path: str) -> bool:
     """Download image from URL and save locally."""
     try:
@@ -127,6 +134,46 @@ def download_image_from_url(url: str, save_path: str) -> bool:
     except Exception as e:
         print(f"Error downloading {url}: {e}")
         return False
+
+
+def search_products_by_price_range(category: str, min_price: float, max_price: float, max_results: int = 10) -> List[Dict]:
+    """
+    Search products by price range within a specific category.
+    Returns all products in the category between min_price and max_price.
+    
+    Example: category="watches", min_price=1500, max_price=2000
+    Returns all watches priced between ₹1500 and ₹2000
+    """
+    try:
+        # Build query for category and price range
+        query = {
+            "$and": [
+                {"category_key": category.lower()},  # Match category
+                {
+                    "$expr": {
+                        "$and": [
+                            {"$gte": [{"$toDouble": "$price"}, min_price]},
+                            {"$lte": [{"$toDouble": "$price"}, max_price]}
+                        ]
+                    }
+                }
+            ]
+        }
+        
+        # Execute search
+        results = list(collection.find(
+            query,
+            {"name": 1, "price": 1, "image_urls": 1, "url": 1, "category": 1, "category_key": 1}
+        ).limit(max_results))
+        
+        print(f"🔍 RANGE Search: Category='{category}', Price: ₹{min_price} - ₹{max_price}")
+        print(f"✅ Found {len(results)} products in price range")
+        
+        return results
+        
+    except Exception as e:
+        print(f"❌ Error in range search: {e}")
+        return []
 
 
 def search_products_by_text(query: str, max_results: int = 10, category_filter: str = None, min_price: float = None, max_price: float = None) -> List[Dict]:
@@ -237,8 +284,11 @@ async def root():
         "service": "Text-based Product Search with Images",
         "endpoints": {
             "/search": "POST - Search products by text and get images",
+            "/search/range": "POST - Search products by price range within category",
             "/search/images": "POST - Search and download images as ZIP",
-            "/products/count": "GET - Get total products in database"
+            "/search/images-list": "POST - Search and get images as base64 (for WhatsApp)",
+            "/products/count": "GET - Get total products in database",
+            "/health": "GET - Health check"
         }
     }
 
@@ -288,6 +338,67 @@ async def search_products(request: SearchRequest):
     return {
         "status": "success",
         "query": request.query,
+        "total_products": len(results),
+        "total_images": total_images,
+        "products": results
+    }
+
+
+@app.post("/search/range")
+async def search_products_in_range(request: RangeSearchRequest):
+    """
+    Search products by price range within a specific category.
+    Returns all products in that price range with images.
+    
+    Example request:
+    {
+        "category": "watches",
+        "min_price": 1500,
+        "max_price": 2000,
+        "max_results": 20
+    }
+    """
+    if not request.category or len(request.category.strip()) < 2:
+        raise HTTPException(status_code=400, detail="Category must be at least 2 characters")
+    
+    if request.min_price < 0 or request.max_price < 0:
+        raise HTTPException(status_code=400, detail="Prices must be positive")
+    
+    if request.min_price > request.max_price:
+        raise HTTPException(status_code=400, detail="Min price cannot be greater than max price")
+    
+    # Search products in price range
+    products = search_products_by_price_range(request.category, request.min_price, request.max_price, request.max_results)
+    
+    if not products:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "status": "no_match",
+                "message": f"No products found in {request.category} category between ₹{request.min_price} and ₹{request.max_price}",
+                "total_results": 0
+            }
+        )
+    
+    # Format results
+    results = []
+    total_images = 0
+    
+    for product in products:
+        product_data = {
+            "product_name": product.get("name", "Unknown"),
+            "price": product.get("price", "N/A"),
+            "product_url": product.get("url", ""),
+            "images": product.get("image_urls", []),
+            "image_count": len(product.get("image_urls", []))
+        }
+        results.append(product_data)
+        total_images += product_data["image_count"]
+    
+    return {
+        "status": "success",
+        "category": request.category,
+        "price_range": f"₹{request.min_price} - ₹{request.max_price}",
         "total_products": len(results),
         "total_images": total_images,
         "products": results

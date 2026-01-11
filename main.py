@@ -880,6 +880,110 @@ def webhook():
                         else:
                             whatsapp.send_message(phone_number, f"Sorry, no products found for '{keyword}' 😔")
 
+                elif action == 'find_product_by_range':
+                    # Price range search - call text_search_api endpoint
+                    category = metadata.get('category', 'watches')
+                    min_price = metadata.get('min_price')
+                    max_price = metadata.get('max_price')
+                    product_name = metadata.get('product_name', f"₹{min_price}-₹{max_price} {category}")
+                    
+                    logger.info(f"💰 PRICE RANGE SEARCH: {category} between ₹{min_price} - ₹{max_price}")
+                    
+                    try:
+                        # Call text_search_api range search endpoint
+                        import requests
+                        from concurrent.futures import ThreadPoolExecutor, as_completed
+                        
+                        text_search_url = os.getenv('TEXT_SEARCH_API_URL', 'http://localhost:8001')
+                        response = requests.post(
+                            f"{text_search_url}/search/range",
+                            json={
+                                "category": category,
+                                "min_price": min_price,
+                                "max_price": max_price,
+                                "max_results": 50
+                            },
+                            timeout=30
+                        )
+                        
+                        if response.status_code == 200:
+                            search_result = response.json()
+                            if search_result.get('status') == 'success':
+                                all_products = search_result.get('products', [])
+                                total_found = search_result.get('total_products', 0)
+                                
+                                logger.info(f"✅ Found {total_found} products in {category} range ₹{min_price}-{max_price}")
+                                
+                                # Send products to user (batch of 5)
+                                if all_products:
+                                    batch_size = 5
+                                    products_to_send = all_products[:batch_size]
+                                    sent_count = len(products_to_send)
+                                    
+                                    # Send intro message
+                                    intro_msg = f"""🎉 Found {total_found} products in {category} (₹{min_price}-₹{max_price})
+Showing {sent_count} products... Please wait 📸"""
+                                    whatsapp.send_message(phone_number, intro_msg)
+                                    
+                                    # Send each product
+                                    def send_single_product(idx, product):
+                                        product_name_item = product.get('product_name', 'Unknown')
+                                        price = product.get('price', 'N/A')
+                                        product_url = product.get('product_url', '')
+                                        images = product.get('images', [])
+                                        
+                                        if not images: return False
+                                        
+                                        try:
+                                            caption = f"📦 {product_name_item}\n💰 ₹{price}"
+                                            if product_url: caption += f"\n🔗 {product_url}"
+                                            if len(images) > 1: caption += f"\n\n📸 {len(images)} images available"
+                                            
+                                            return whatsapp.forward_media(phone_number, images[0], caption, "image")
+                                        except Exception as e:
+                                            logger.error(f"Error sending product {idx}: {e}")
+                                            return False
+                                    
+                                    success_count = 0
+                                    with ThreadPoolExecutor(max_workers=3) as executor:
+                                        futures = [executor.submit(send_single_product, idx, prod)
+                                                  for idx, prod in enumerate(products_to_send, 1)]
+                                        for future in as_completed(futures):
+                                            if future.result(): success_count += 1
+                                    
+                                    # Cache products for pagination
+                                    orchestrator.cache_product_data(phone_number, all_products)
+                                    
+                                    if success_count > 0:
+                                        orchestrator.save_search_context(phone_number, product_name, total_found, sent_count)
+                                        
+                                        # Send completion message
+                                        if sent_count < total_found:
+                                            completion_msg = f"""બીજી પ્રોડક્ટ પણ છે અમારી પાસે, જો તમારે જોવી હોય તો હું બતાવું? 😊
+
+તમે આ વૉચ બે રીતે ઓર્ડર કરી શકો છો
+1. અમદાવાદ-બોપલ સ્થિત અમારી સ્ટોર પરથી સીધી આવીને લઈ શકો છો.
+2. ઘર બેઠા Open Box Cash on Delivery દ્વારા પણ મંગાવી શકો છો.
+તમને કયો વિકલ્પ વધુ યોગ્ય લાગે છે? કૃપા કરીને જણાવશો."""
+                                        else:
+                                            completion_msg = """તમે આ વૉચ બે રીતે ઓર્ડર કરી શકો છો
+1. અમદાવાદ-બોપલ સ્થિત અમારી સ્ટોર પરથી સીધી આવીને લઈ શકો છો.
+2. ઘર બેઠા Open Box Cash on Delivery દ્વારા પણ મંગાવી શકો છો.
+તમને કયો વિકલ્પ વધુ યોગ્ય લાગે છે? કૃપા કરીને જણાવશો."""
+                                        
+                                        whatsapp.send_message(phone_number, completion_msg)
+                                else:
+                                    whatsapp.send_message(phone_number, f"❌ No products found in {category} between ₹{min_price} - ₹{max_price}")
+                            else:
+                                whatsapp.send_message(phone_number, f"❌ {search_result.get('message', 'Search failed')}")
+                        else:
+                            logger.error(f"❌ Text search API error: {response.status_code}")
+                            whatsapp.send_message(phone_number, f"Sorry, couldn't search products in that range 😔")
+                            
+                    except Exception as e:
+                        logger.error(f"❌ Price range search error: {e}")
+                        whatsapp.send_message(phone_number, f"Technical error during search 😔")
+
                 elif action == 'ai_chat' or action == 'ai_response':
                     response = conversation_agent.get_response(conversation, phone_number, metadata)
                     whatsapp.send_message(phone_number, response)

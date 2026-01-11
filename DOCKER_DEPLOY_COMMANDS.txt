@@ -1,0 +1,169 @@
+================================================================================
+DOCKER DEPLOYMENT COMMANDS - Copy Updated Files to Server
+================================================================================
+
+STEP 1: Copy Updated Python Files to Docker Container
+================================================================================
+
+# Copy system_prompt_config.py
+docker cp system_prompt_config.py CONTAINER_ID:/app/system_prompt_config.py
+
+# Copy backend_tool_classifier.py
+docker cp backend_tool_classifier.py CONTAINER_ID:/app/backend_tool_classifier.py
+
+# Copy text_search_api.py
+docker cp text_search_api.py CONTAINER_ID:/app/text_search_api.py
+
+# Copy agent_orchestrator.py
+docker cp agent_orchestrator.py CONTAINER_ID:/app/agent_orchestrator.py
+
+# Copy main.py
+docker cp main.py CONTAINER_ID:/app/main.py
+
+
+STEP 2: Find Your Container ID
+================================================================================
+
+# List all running containers
+docker ps
+
+# Look for your WatchVine container (might be named something like 'watchvine', 'main', etc.)
+# Example output:
+# CONTAINER ID   IMAGE                    STATUS
+# a1b2c3d4e5f6   watchvine:latest         Up 2 hours
+
+# Use the CONTAINER ID in the commands above
+
+
+STEP 3: Copy All Files At Once (RECOMMENDED)
+================================================================================
+
+# Replace CONTAINER_ID with your actual container ID
+docker cp system_prompt_config.py CONTAINER_ID:/app/ && \
+docker cp backend_tool_classifier.py CONTAINER_ID:/app/ && \
+docker cp text_search_api.py CONTAINER_ID:/app/ && \
+docker cp agent_orchestrator.py CONTAINER_ID:/app/ && \
+docker cp main.py CONTAINER_ID:/app/
+
+echo "✅ All files copied successfully!"
+
+
+STEP 4: Verify Files Were Copied
+================================================================================
+
+# Check if files are in the container
+docker exec CONTAINER_ID ls -la /app/system_prompt_config.py
+docker exec CONTAINER_ID ls -la /app/backend_tool_classifier.py
+docker exec CONTAINER_ID ls -la /app/text_search_api.py
+docker exec CONTAINER_ID ls -la /app/agent_orchestrator.py
+docker exec CONTAINER_ID ls -la /app/main.py
+
+
+STEP 5: Restart Container (If Python Service Needs to Reload)
+================================================================================
+
+# Option A: Restart the entire container
+docker restart CONTAINER_ID
+
+# Option B: Just check container logs for errors
+docker logs -f CONTAINER_ID
+
+
+STEP 6: Quick Test (Optional)
+================================================================================
+
+# Check if the new policies are in system prompt
+docker exec CONTAINER_ID grep -n "WHOLESALE" /app/system_prompt_config.py
+
+# Check if find_product_by_range is in classifier
+docker exec CONTAINER_ID grep -n "find_product_by_range" /app/backend_tool_classifier.py
+
+# Check if /search/range endpoint exists
+docker exec CONTAINER_ID grep -n "/search/range" /app/text_search_api.py
+
+
+================================================================================
+MULTIPLE CONTAINERS (If you have multiple services)
+================================================================================
+
+If you have multiple Docker containers (main app, text search API, image identifier):
+
+# For MAIN APPLICATION CONTAINER
+docker cp system_prompt_config.py MAIN_CONTAINER:/app/
+docker cp backend_tool_classifier.py MAIN_CONTAINER:/app/
+docker cp agent_orchestrator.py MAIN_CONTAINER:/app/
+docker cp main.py MAIN_CONTAINER:/app/
+
+# For TEXT SEARCH API CONTAINER
+docker cp text_search_api.py TEXT_SEARCH_CONTAINER:/app/
+
+# Restart both containers
+docker restart MAIN_CONTAINER TEXT_SEARCH_CONTAINER
+
+
+================================================================================
+DOCKER COMPOSE (If using docker-compose)
+================================================================================
+
+# If using docker-compose, find container names:
+docker-compose ps
+
+# Copy files (using service name or container name)
+docker-compose exec -T main_service cp /local/path/system_prompt_config.py /app/
+
+# OR restart all services
+docker-compose restart
+
+# Check logs
+docker-compose logs -f
+
+
+================================================================================
+EXAMPLE WITH REAL CONTAINER IDs
+================================================================================
+
+# Example: If your container ID is a1b2c3d4e5f6
+docker cp system_prompt_config.py a1b2c3d4e5f6:/app/
+docker cp backend_tool_classifier.py a1b2c3d4e5f6:/app/
+docker cp text_search_api.py a1b2c3d4e5f6:/app/
+docker cp agent_orchestrator.py a1b2c3d4e5f6:/app/
+docker cp main.py a1b2c3d4e5f6:/app/
+
+# Verify
+docker exec a1b2c3d4e5f6 ls -la /app/*.py | grep -E "(system_prompt|backend_tool|text_search|agent_orchestrator|main)"
+
+# Restart
+docker restart a1b2c3d4e5f6
+
+echo "✅ Deployment complete!"
+
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+1. Container not found?
+   - Run: docker ps (to find container ID)
+   - Or: docker ps -a (to see stopped containers)
+
+2. Permission denied error?
+   - Ensure Docker daemon is running
+   - Run: sudo docker cp ... (if using sudo)
+
+3. Want to copy to specific path in container?
+   - docker cp FILE CONTAINER:/custom/path/
+
+4. Want to copy FROM container to local?
+   - docker cp CONTAINER:/app/file.py ./file.py
+
+5. Check if changes applied:
+   - docker exec CONTAINER_ID cat /app/system_prompt_config.py | grep WHOLESALE
+
+================================================================================
+QUICK ONE-LINER DEPLOYMENT
+================================================================================
+
+# Replace YOUR_CONTAINER_ID with actual container ID, then run:
+for file in system_prompt_config.py backend_tool_classifier.py text_search_api.py agent_orchestrator.py main.py; do docker cp $file YOUR_CONTAINER_ID:/app/ && echo "✅ Copied $file"; done && docker restart YOUR_CONTAINER_ID && echo "✅ Container restarted"
+
+================================================================================

@@ -131,6 +131,22 @@ class AgentOrchestrator:
             logger.info(f"📊 Backend AI provided range: '{range_str}'")
             return ('find_product', {'keyword': keyword, 'range': range_str})
         
+        elif tool == 'find_product_by_range':
+            # Backend AI detected price range search and extracted min/max price + category
+            category = decision.get('category', 'watches')
+            min_price = decision.get('min_price')
+            max_price = decision.get('max_price')
+            product_name = decision.get('product_name', f"₹{min_price}-₹{max_price} {category}")
+            logger.info(f"💰 Backend AI detected PRICE RANGE search")
+            logger.info(f"📦 Category: {category} | Price Range: ₹{min_price} - ₹{max_price}")
+            logger.info(f"🛍️ Product Name: {product_name}")
+            return ('find_product_by_range', {
+                'category': category,
+                'min_price': min_price,
+                'max_price': max_price,
+                'product_name': product_name
+            })
+        
         elif tool == 'ask_product_for_images':
             # User wants more images but didn't specify which product
             logger.info(f"📸 Backend AI detected: User wants more images (no product specified)")

@@ -1,0 +1,121 @@
+version: '3.8'
+
+services:
+  # Main WhatsApp Bot with Watch System
+  whatsapp-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.watch_system
+    container_name: watch_whatsapp_bot
+    environment:
+      - MONGODB_URI=mongodb://admin:strongpassword123@72.62.76.36:27017/?authSource=admin
+      - GOOGLE_API_KEY=AIzaSyBZ8shurgeNDiDj4TlpBk7RUgrQ-G2mJ_0
+      - FLASK_ENV=production
+      - PYTHONPATH=/app
+      - AI_ENHANCEMENT_VERSION=2.0
+      - COMPREHENSIVE_ANALYSIS=true
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./chroma_watch_db:/app/chroma_watch_db
+      - ./logs:/app/logs
+      - ./data:/app/data
+    restart: unless-stopped
+    depends_on:
+      - watch-scraper
+      - watch-indexer
+    networks:
+      - watch_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Watch Scraper Service
+  watch-scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile.watch_system
+    container_name: watch_scraper
+    environment:
+      - MONGODB_URI=mongodb://admin:strongpassword123@72.62.76.36:27017/?authSource=admin
+      - GOOGLE_API_KEY=AIzaSyBZ8shurgeNDiDj4TlpBk7RUgrQ-G2mJ_0
+      - SCRAPER_MODE=scheduled
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    restart: unless-stopped
+    command: ["python", "smart_watch_scraper.py"]
+    networks:
+      - watch_network
+
+  # Watch AI Enhancement Service  
+  watch-ai-enhancer:
+    build:
+      context: .
+      dockerfile: Dockerfile.watch_system
+    container_name: watch_ai_enhancer
+    environment:
+      - MONGODB_URI=mongodb://admin:strongpassword123@72.62.76.36:27017/?authSource=admin
+      - GOOGLE_API_KEY=AIzaSyBZ8shurgeNDiDj4TlpBk7RUgrQ-G2mJ_0
+      - AI_MODE=auto
+      - COMPREHENSIVE_ANALYSIS=true
+      - EXTRACT_ALL_FIELDS=true
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    restart: unless-stopped
+    command: ["python", "auto_ai_watch_enhancer.py"]
+    networks:
+      - watch_network
+
+  # Watch Image Indexer Service
+  watch-indexer:
+    build:
+      context: .
+      dockerfile: Dockerfile.watch_system
+    container_name: watch_indexer
+    environment:
+      - MONGODB_URI=mongodb://admin:strongpassword123@72.62.76.36:27017/?authSource=admin
+      - INDEXER_MODE=continuous
+    volumes:
+      - ./chroma_watch_db:/app/chroma_watch_db
+      - ./logs:/app/logs
+      - ./data:/app/data
+    restart: unless-stopped
+    command: ["python", "watch_indexer.py"]
+    ports:
+      - "8001:8001"
+    networks:
+      - watch_network
+
+  # Watch Search API Service
+  watch-search-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.watch_system
+    container_name: watch_search_api
+    environment:
+      - MONGODB_URI=mongodb://admin:strongpassword123@72.62.76.36:27017/?authSource=admin
+    volumes:
+      - ./chroma_watch_db:/app/chroma_watch_db
+      - ./logs:/app/logs
+    restart: unless-stopped
+    command: ["python", "watch_search_api.py"]
+    ports:
+      - "8002:8002"
+    networks:
+      - watch_network
+
+networks:
+  watch_network:
+    driver: bridge
+
+volumes:
+  chroma_data:
+    driver: local
+  logs_data:
+    driver: local
+  app_data:
+    driver: local

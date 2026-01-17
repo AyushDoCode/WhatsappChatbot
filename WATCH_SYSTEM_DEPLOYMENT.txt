@@ -1,0 +1,180 @@
+# 🚀 COMPLETE WATCH SYSTEM DEPLOYMENT COMMANDS
+# Enhanced AI Watch System with Comprehensive Field Extraction
+# Run these commands in sequence to deploy the complete system
+
+# ============================================================================
+# STEP 1: COPY ALL ENHANCED SYSTEM FILES
+# ============================================================================
+
+# Copy main AI enhancement system
+docker cp auto_ai_watch_enhancer.py watchvine_main_app:/app/auto_ai_watch_enhancer.py
+docker cp smart_watch_scraper.py watchvine_main_app:/app/smart_watch_scraper.py
+docker cp watch_indexer.py watchvine_main_app:/app/watch_indexer.py
+docker cp watch_search_api.py watchvine_main_app:/app/watch_search_api.py
+docker cp watch_rag_system.py watchvine_main_app:/app/watch_rag_system.py
+
+# Copy Docker configuration files
+docker cp docker-compose.watch_system.yml watchvine_main_app:/app/docker-compose.watch_system.yml
+docker cp Dockerfile.watch_system watchvine_main_app:/app/Dockerfile.watch_system
+docker cp requirements.watch_system.txt watchvine_main_app:/app/requirements.txt
+
+# Copy deployment and test scripts
+docker cp deploy_watch_system.sh watchvine_main_app:/app/deploy_watch_system.sh
+docker cp test_watch_system.py watchvine_main_app:/app/test_watch_system.py
+docker cp run_first_time_setup.py watchvine_main_app:/app/run_first_time_setup.py
+
+# Copy documentation
+docker cp README_COMPREHENSIVE_SYSTEM.md watchvine_main_app:/app/README_COMPREHENSIVE_SYSTEM.md
+
+# ============================================================================
+# STEP 2: MAKE SCRIPTS EXECUTABLE
+# ============================================================================
+
+docker exec watchvine_main_app chmod +x /app/deploy_watch_system.sh
+docker exec watchvine_main_app chmod +x /app/run_first_time_setup.py
+docker exec watchvine_main_app chmod 755 /app/auto_ai_watch_enhancer.py
+docker exec watchvine_main_app chmod 755 /app/smart_watch_scraper.py
+
+# ============================================================================
+# STEP 3: STOP EXISTING SERVICES AND DEPLOY NEW SYSTEM
+# ============================================================================
+
+# Stop any existing containers
+docker exec watchvine_main_app docker-compose down --remove-orphans
+
+# Build and start the enhanced watch system
+docker exec watchvine_main_app docker-compose -f docker-compose.watch_system.yml up --build -d
+
+# ============================================================================
+# STEP 4: RESTART AND VERIFY DEPLOYMENT
+# ============================================================================
+
+# Restart main container with new system
+docker restart watchvine_main_app
+
+# Wait for services to start
+sleep 30
+
+# ============================================================================
+# STEP 5: VERIFY SYSTEM IS WORKING
+# ============================================================================
+
+# Check main app health
+docker exec watchvine_main_app curl -f http://localhost:8000/health
+
+# Check search API health  
+docker exec watchvine_main_app curl -f http://localhost:8002/health
+
+# Test comprehensive search functionality
+docker exec watchvine_main_app curl -X POST http://localhost:8002/search/text \
+  -H "Content-Type: application/json" \
+  -d '{"query": "black luxury mens watches steel bracelet", "limit": 5}'
+
+# Test advanced filtering with all new fields
+docker exec watchvine_main_app curl -X POST http://localhost:8002/search/filters \
+  -H "Content-Type: application/json" \
+  -d '{"colors": ["Black"], "category": "luxury_watch", "ai_gender_target": "mens", "belt_type": "steel_bracelet"}'
+
+# ============================================================================
+# STEP 6: RUN COMPLETE SYSTEM TESTS
+# ============================================================================
+
+# Test the complete system with all features
+docker exec watchvine_main_app python test_watch_system.py --test all
+
+# Test individual components
+docker exec watchvine_main_app python test_watch_system.py --test api
+docker exec watchvine_main_app python test_watch_system.py --test search
+docker exec watchvine_main_app python test_watch_system.py --test chat
+
+# ============================================================================
+# STEP 7: MONITOR SYSTEM LOGS
+# ============================================================================
+
+# Watch logs for main app
+docker logs -f watchvine_main_app
+
+# Watch logs for all services (run in separate terminals)
+docker exec watchvine_main_app docker-compose -f docker-compose.watch_system.yml logs -f whatsapp-bot
+docker exec watchvine_main_app docker-compose -f docker-compose.watch_system.yml logs -f watch-scraper
+docker exec watchvine_main_app docker-compose -f docker-compose.watch_system.yml logs -f watch-ai-enhancer
+docker exec watchvine_main_app docker-compose -f docker-compose.watch_system.yml logs -f watch-indexer
+
+# ============================================================================
+# STEP 8: TEST INDIVIDUAL SERVICES (OPTIONAL)
+# ============================================================================
+
+# Test scraper manually
+docker exec watchvine_main_app python smart_watch_scraper.py
+
+# Test AI enhancer manually (for new watches only)
+docker exec watchvine_main_app python auto_ai_watch_enhancer.py
+
+# Test indexer manually
+docker exec watchvine_main_app python watch_indexer.py
+
+# ============================================================================
+# STEP 9: SYSTEM STATUS AND STATISTICS
+# ============================================================================
+
+# Get comprehensive system statistics
+docker exec watchvine_main_app curl http://localhost:8002/stats
+
+# Get database status
+docker exec watchvine_main_app curl http://localhost:8002/filters/options
+
+# Check watch enhancement progress
+docker exec watchvine_main_app python -c "
+from auto_ai_watch_enhancer import AutoAIWatchEnhancer
+enhancer = AutoAIWatchEnhancer('mongodb://admin:strongpassword123@72.62.76.36:27017/?authSource=admin', 'AIzaSyBZ8shurgeNDiDj4TlpBk7RUgrQ-G2mJ_0')
+enhancer.get_enhancement_summary()
+enhancer.close()
+"
+
+# ============================================================================
+# TROUBLESHOOTING COMMANDS (IF NEEDED)
+# ============================================================================
+
+# If services fail to start, check logs
+docker exec watchvine_main_app docker-compose -f docker-compose.watch_system.yml logs
+
+# Restart specific service
+docker exec watchvine_main_app docker-compose -f docker-compose.watch_system.yml restart watch-ai-enhancer
+
+# Check Docker resources
+docker exec watchvine_main_app docker system df
+
+# Clean up if needed
+docker exec watchvine_main_app docker system prune -f
+
+# ============================================================================
+# EXPECTED RESULTS AFTER SUCCESSFUL DEPLOYMENT
+# ============================================================================
+
+# ✅ 5 microservices running:
+#    - WhatsApp Bot (port 8000)
+#    - Watch Scraper (background)
+#    - AI Enhancer (background) 
+#    - Watch Indexer (port 8001)
+#    - Search API (port 8002)
+
+# ✅ Comprehensive AI analysis extracting:
+#    - Colors (case, dial, strap, accents)
+#    - Styles (luxury, sporty, minimalistic, etc.)
+#    - Materials (steel, gold, leather, rubber, etc.)
+#    - Belt types (metal_belt, leather_belt, etc.)
+#    - Categories (luxury_watch, sport_watch, etc.)
+#    - Gender targeting (mens, womens, unisex)
+
+# ✅ Customer queries now work like:
+#    "Show me black luxury mens watches with steel bracelet"
+#    "Find minimalistic silver watches with leather strap"
+#    "I want sporty diving watches with rubber belt"
+
+# ✅ System automatically:
+#    - Scrapes only watches (12 AM - 6 AM)
+#    - AI enhances new watches only (saves API costs)
+#    - Indexes images for visual search
+#    - Provides intelligent chat responses
+
+# 🎉 DEPLOYMENT COMPLETE! Your comprehensive watch system is ready! 🎉

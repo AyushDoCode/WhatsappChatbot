@@ -1,0 +1,115 @@
+services:
+  # ============================================================================
+  # Main Flask App
+  # ============================================================================
+  main_app:
+    build:
+      context: .
+      dockerfile: Dockerfile.main
+    container_name: watchvine_main_app
+    restart: always
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./temp_images:/app/temp_images
+      - ./logs:/app/logs
+      - shared_index:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MONGO_URI=${MONGO_URI}
+      - MONGODB_URI=${MONGODB_URI}
+      - DATABASE_NAME=watchvine_refined
+      - COLLECTION_NAME=products
+      - MONGODB_DB=whatsapp_bot
+      - TEXT_SEARCH_API_URL=http://text_search_api:8001
+      - IMAGE_IDENTIFIER_API_URL=http://image_identifier_api:8002
+      - Google_api=${Google_api}
+      - google_model=${google_model}
+      - Google_url=${Google_url}
+      - EVOLUTION_API_URL=${EVOLUTION_API_URL}
+      - EVOLUTION_API_KEY=${EVOLUTION_API_KEY}
+      - INSTANCE_NAME=${INSTANCE_NAME}
+      - GOOGLE_APPS_SCRIPT_URL=${GOOGLE_APPS_SCRIPT_URL}
+      - GOOGLE_APPS_SCRIPT_SECRET=${GOOGLE_APPS_SCRIPT_SECRET}
+      - GOOGLE_SHEET_URL=${GOOGLE_SHEET_URL}
+      - IMAGE_FORWARD_NUMBER=${IMAGE_FORWARD_NUMBER}
+    # Removed 'mongodb' dependency
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    networks:
+      - watchvine_network
+
+  # ============================================================================
+  # Text Search API
+  # ============================================================================
+  text_search_api:
+    build:
+      context: .
+      dockerfile: Dockerfile.text_search
+    container_name: watchvine_text_search
+    restart: always
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MONGO_URI=${MONGO_URI}
+      - MONGODB_URI=${MONGODB_URI}
+      - DATABASE_NAME=watchvine_refined
+      - COLLECTION_NAME=products
+    depends_on:
+      main_app:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - watchvine_network
+
+  # ============================================================================
+  # Image Identifier API
+  # ============================================================================
+  image_identifier_api:
+    build:
+      context: .
+      dockerfile: Dockerfile.image_identifier
+    container_name: watchvine_image_identifier
+    restart: always
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./logs:/app/logs
+      - shared_index:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MONGO_URI=${MONGO_URI}
+      - MONGODB_URI=${MONGODB_URI}
+      - DATABASE_NAME=watchvine_refined
+      - COLLECTION_NAME=products
+    depends_on:
+      main_app:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    networks:
+      - watchvine_network
+
+volumes:
+  shared_index:
+    driver: local
+
+networks:
+  watchvine_network:
+    driver: bridge

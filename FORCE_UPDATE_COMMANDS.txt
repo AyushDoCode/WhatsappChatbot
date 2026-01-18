@@ -1,0 +1,43 @@
+# 🔧 FORCE UPDATE AGENT ORCHESTRATOR - COMPLETE FIX
+
+# Step 1: Check what's currently in the container (old file)
+docker exec watchvine_main_app head -15 /app/agent_orchestrator.py
+
+# Step 2: Force copy the clean version (completely replaces old file)
+docker cp clean_agent_orchestrator.py watchvine_main_app:/app/agent_orchestrator.py
+
+# Step 3: Verify the file was actually replaced
+docker exec watchvine_main_app head -15 /app/agent_orchestrator.py
+
+# Step 4: Copy enhanced backend classifier too
+docker cp enhanced_backend_tool_classifier.py watchvine_main_app:/app/enhanced_backend_tool_classifier.py
+
+# Step 5: Copy vector search system
+docker cp gemini_vector_search.py watchvine_main_app:/app/gemini_vector_search.py
+
+# Step 6: Restart container to reload all modules
+docker restart watchvine_main_app
+sleep 25
+
+# Step 7: Check if the import error is gone
+docker logs --tail=30 watchvine_main_app
+
+# Step 8: Test the enhanced system
+docker exec watchvine_main_app python -c "
+try:
+    from agent_orchestrator import AgentOrchestrator, ConversationState
+    print('✅ AgentOrchestrator imported successfully - no more import errors!')
+    
+    orchestrator = AgentOrchestrator()
+    print('✅ AgentOrchestrator initialized successfully')
+    
+    # Test vector search
+    result = orchestrator.process_message([], 'show me rolex watches', '+1234567890')
+    print(f'✅ Vector search test: {result.get(\"tool_used\")}')
+    print('🎉 COMPLETE SYSTEM WORKING!')
+    
+except Exception as e:
+    print(f'❌ Error: {e}')
+    import traceback
+    traceback.print_exc()
+"

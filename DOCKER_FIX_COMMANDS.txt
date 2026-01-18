@@ -1,0 +1,33 @@
+# 🔧 DOCKER FIX COMMANDS - Copy Missing Files and Restart
+
+# Copy the missing conversation_agent.py
+docker cp conversation_agent.py watchvine_main_app:/app/conversation_agent.py
+
+# Copy the updated agent_orchestrator.py with import fix
+docker cp updated_agent_orchestrator.py watchvine_main_app:/app/agent_orchestrator.py
+
+# Restart the container to apply changes
+docker restart watchvine_main_app
+
+# Wait for restart
+sleep 20
+
+# Check if the container is running properly
+docker ps | grep watchvine_main_app
+
+# Check logs to verify it's working
+docker logs --tail=20 watchvine_main_app
+
+# Test the system
+docker exec watchvine_main_app python -c "
+try:
+    from agent_orchestrator import AgentOrchestrator
+    print('✅ Agent Orchestrator imported successfully')
+    from conversation_agent import ConversationAgent
+    print('✅ Conversation Agent imported successfully')
+    from enhanced_backend_tool_classifier import BackendToolClassifier
+    print('✅ Enhanced Backend Classifier imported successfully')
+    print('🎉 All modules working!')
+except Exception as e:
+    print(f'❌ Error: {e}')
+"

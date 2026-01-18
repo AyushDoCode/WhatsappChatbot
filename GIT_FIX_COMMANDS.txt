@@ -1,0 +1,74 @@
+# 🔧 GIT DIVERGENT BRANCHES FIX
+# Commands to resolve the git pull issue
+
+# ============================================================================
+# OPTION 1: MERGE (RECOMMENDED) - Keeps both your local and remote changes
+# ============================================================================
+
+# Set merge as default behavior
+git config pull.rebase false
+
+# Pull with merge
+git pull origin main
+
+# ============================================================================
+# OPTION 2: REBASE - Replays your commits on top of remote changes
+# ============================================================================
+
+# Set rebase as default behavior (alternative)
+# git config pull.rebase true
+# git pull origin main
+
+# ============================================================================
+# OPTION 3: FORCE RESET TO REMOTE (USE WITH CAUTION)
+# Only use this if you want to discard ALL local changes
+# ============================================================================
+
+# Backup your current state first
+# git stash push -m "backup before reset"
+
+# Reset to remote main (WARNING: loses local changes)
+# git reset --hard origin/main
+
+# ============================================================================
+# OPTION 4: ONE-TIME MERGE (if you don't want to set global config)
+# ============================================================================
+
+# Pull with merge for this time only
+git pull origin main --no-rebase
+
+# ============================================================================
+# RECOMMENDED WORKFLOW FOR YOUR SERVER
+# ============================================================================
+
+# Step 1: Use merge approach (safest)
+git config pull.rebase false
+git pull origin main
+
+# Step 2: If there are conflicts, resolve them
+# Git will show conflicted files, edit them to resolve conflicts
+# Then:
+# git add .
+# git commit -m "Resolve merge conflicts"
+
+# Step 3: Push your changes back if needed
+# git push origin main
+
+# ============================================================================
+# WHAT EACH OPTION DOES
+# ============================================================================
+
+# pull.rebase false (merge):
+# - Creates a merge commit
+# - Preserves both local and remote history
+# - Safer option, recommended for collaborative work
+
+# pull.rebase true (rebase):  
+# - Replays your commits on top of remote changes
+# - Creates linear history
+# - Can be cleaner but more complex if conflicts arise
+
+# --ff-only:
+# - Only allows fast-forward merges
+# - Fails if branches have diverged
+# - Most restrictive option

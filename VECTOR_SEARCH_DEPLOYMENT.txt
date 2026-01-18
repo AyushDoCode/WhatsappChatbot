@@ -1,0 +1,125 @@
+# 🚀 MONGODB VECTOR SEARCH WITH GEMINI EMBEDDINGS DEPLOYMENT
+# Enhanced system with comprehensive AI analysis + Vector search
+# Copy these commands sequentially to deploy the enhanced system
+
+# ============================================================================
+# COPY ENHANCED SYSTEM FILES TO SERVER
+# ============================================================================
+
+# Copy new vector search system
+docker cp gemini_vector_search.py watchvine_main_app:/app/gemini_vector_search.py
+docker cp enhanced_backend_tool_classifier.py watchvine_main_app:/app/enhanced_backend_tool_classifier.py
+
+# Copy updated agent orchestrator
+docker cp agent_orchestrator.py watchvine_main_app:/app/agent_orchestrator.py
+
+# Copy comprehensive AI enhancement system (if not already copied)
+docker cp auto_ai_watch_enhancer.py watchvine_main_app:/app/auto_ai_watch_enhancer.py
+docker cp smart_watch_scraper.py watchvine_main_app:/app/smart_watch_scraper.py
+docker cp watch_indexer.py watchvine_main_app:/app/watch_indexer.py
+docker cp watch_search_api.py watchvine_main_app:/app/watch_search_api.py
+docker cp watch_rag_system.py watchvine_main_app:/app/watch_rag_system.py
+
+# ============================================================================
+# RESTART CONTAINER TO APPLY CHANGES
+# ============================================================================
+
+# Restart the main container to load new modules
+docker restart watchvine_main_app
+
+# Wait for container to restart
+sleep 20
+
+# ============================================================================
+# INITIALIZE VECTOR SEARCH INDEX (IMPORTANT!)
+# ============================================================================
+
+# Create vector embeddings for existing products
+docker exec watchvine_main_app python -c "
+from gemini_vector_search import GeminiVectorSearch
+import os
+MONGODB_URI = 'mongodb://admin:strongpassword123@72.62.76.36:27017/?authSource=admin'
+GOOGLE_API_KEY = 'AIzaSyBZ8shurgeNDiDj4TlpBk7RUgrQ-G2mJ_0'
+search = GeminiVectorSearch(MONGODB_URI, GOOGLE_API_KEY)
+print('🔄 Creating vector embeddings...')
+search.index_products(batch_size=20)
+stats = search.get_indexing_stats()
+print(f'✅ Vector indexing complete: {stats}')
+search.close()
+"
+
+# ============================================================================
+# TEST THE ENHANCED SYSTEM
+# ============================================================================
+
+# Test vector search functionality
+docker exec watchvine_main_app python -c "
+from enhanced_backend_tool_classifier import BackendToolClassifier
+classifier = BackendToolClassifier()
+print('🧪 Testing vector search...')
+
+# Test query 1
+result1 = classifier.classify_and_search('mane rolex watch black ma joi e')
+print(f'Test 1 - Hinglish query: {result1.get(\"tool\", \"unknown\")}')
+
+# Test query 2  
+result2 = classifier.classify_and_search('show me luxury watches under 5000')
+print(f'Test 2 - English query: {result2.get(\"tool\", \"unknown\")}')
+
+# Test query 3
+result3 = classifier.classify_and_search('hi how are you')
+print(f'Test 3 - General chat: {result3.get(\"tool\", \"unknown\")}')
+
+print('✅ Vector search system working!')
+classifier.close()
+"
+
+# ============================================================================
+# VERIFY SYSTEM HEALTH
+# ============================================================================
+
+# Check if main app is responding
+docker exec watchvine_main_app curl -f http://localhost:8000/health
+
+# Test the enhanced backend classifier
+docker exec watchvine_main_app python -c "
+from enhanced_backend_tool_classifier import BackendToolClassifier
+classifier = BackendToolClassifier()
+stats = classifier.get_search_stats()
+print(f'📊 Vector search stats: {stats}')
+classifier.close()
+"
+
+# ============================================================================
+# MONITOR LOGS
+# ============================================================================
+
+# Watch logs for any issues
+docker logs -f watchvine_main_app
+
+# ============================================================================
+# EXPECTED RESULTS AFTER DEPLOYMENT
+# ============================================================================
+
+# ✅ Enhanced System Features:
+#    - MongoDB vector search with Gemini text embeddings
+#    - Hinglish query understanding (mane rolex watch -> I want Rolex watch)
+#    - Product responses with IMAGE, PRICE, URL only
+#    - Semantic similarity search (finds relevant products even with different wording)
+#    - Hybrid search (combines text similarity + filters)
+
+# ✅ User Experience Improvements:
+#    - Query: "mane rolex watch black ma joi e" -> Finds black Rolex watches
+#    - Query: "show luxury watches" -> Returns luxury category watches with images
+#    - Query: "sports watch under 3000" -> Filters by price + finds sporty watches
+#    - General chat: "hi" -> Normal chatbot response
+
+# ✅ Response Format:
+#    - Product Name
+#    - Brand  
+#    - Price (₹XXXX)
+#    - Product Image URL
+#    - Shop URL
+#    - NO lengthy descriptions - just essential info
+
+# 🎉 DEPLOYMENT COMPLETE! Enhanced vector search system is ready! 🎉

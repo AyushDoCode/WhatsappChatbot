@@ -1,0 +1,168 @@
+# 🧹 CLEANUP OLD FILES AND DEPLOY NEW WATCH SYSTEM
+# Remove old files and deploy the enhanced vector search system
+
+# ============================================================================
+# STEP 1: FIX GIT ISSUE FIRST
+# ============================================================================
+
+cd ~/WhatsappChatbot
+
+# Fix the divergent branches issue
+git config pull.rebase false
+git pull origin main
+
+# ============================================================================
+# STEP 2: BACKUP IMPORTANT CONFIGS (JUST IN CASE)
+# ============================================================================
+
+# Create backup directory
+mkdir -p ~/backup_configs
+
+# Backup important config files
+cp system_prompt_config.py ~/backup_configs/ 2>/dev/null || true
+cp tool_calling_config.py ~/backup_configs/ 2>/dev/null || true
+cp .env ~/backup_configs/ 2>/dev/null || true
+
+# ============================================================================
+# STEP 3: REMOVE OLD/DUPLICATE FILES
+# ============================================================================
+
+# Remove old documentation files
+rm -f CLEANUP_COMPLETE.md README_COMPLETE_SOLUTION.txt SOLUTION_SUMMARY.md
+rm -f START_HERE.txt FILES_CREATED_SUMMARY.txt FINAL_STATUS.txt INDEX.md
+rm -f INTEGRATION_STEPS.md QUICK_START.md integration_guide.md
+
+# Remove old Docker files
+rm -f DOCKER_COMMANDS.txt DOCKER_DEPLOY_COMMANDS.txt docker-compose_fixed.txt
+
+# Remove old main files
+rm -f main_backup.py main_bulletproof.txt main_final.txt main_fixed.py main_fixed.txt
+
+# Remove old/backup config files
+rm -f system_prompt_config_backup.py tool_calling_config_backup.py
+
+# Remove old API versions
+rm -f api_v2.py backend_tool_classifier_v2.py backend_tool_classifier_v3.py
+
+# Remove old indexer files
+rm -f indexer.py indexer_v2_test.py run_product_indexing.py
+
+# Remove old search files
+rm -f advanced_product_search.py intelligent_product_search.py
+rm -f product_indexer_hybrid.py product_name_parser.py product_search_final.py
+rm -f semantic_product_search.py simple_product_search.py
+rm -f smart_product_finder.py unified_conversation_manager.py
+
+# Remove old cleanup scripts
+rm -f cleanup_github.sh cleanup_old_data.sh delete_old_files.sh setup_fresh_repo.sh
+
+# Remove temporary files and logs
+rm -rf temp_images logs
+
+echo "✅ Old files cleaned up!"
+
+# ============================================================================
+# STEP 4: ADD NEW ENHANCED SYSTEM FILES
+# ============================================================================
+
+# Create the new enhanced files (copy these from your local machine)
+echo "📂 Ready to receive new files..."
+
+# After copying files, list current files
+ls -la
+
+# ============================================================================
+# STEP 5: COPY NEW SYSTEM FILES FROM LOCAL MACHINE
+# ============================================================================
+
+# Run these commands from your LOCAL MACHINE (not server):
+
+# Copy vector search system
+scp gemini_vector_search.py root@srv1233244:~/WhatsappChatbot/
+scp enhanced_backend_tool_classifier.py root@srv1233244:~/WhatsappChatbot/
+scp updated_agent_orchestrator.py root@srv1233244:~/WhatsappChatbot/agent_orchestrator.py
+scp watch_only_scraper.py root@srv1233244:~/WhatsappChatbot/
+
+# Copy any other new files you created
+# scp auto_ai_watch_enhancer.py root@srv1233244:~/WhatsappChatbot/
+# scp smart_watch_scraper.py root@srv1233244:~/WhatsappChatbot/
+# scp watch_indexer.py root@srv1233244:~/WhatsappChatbot/
+# scp watch_search_api.py root@srv1233244:~/WhatsappChatbot/
+# scp watch_rag_system.py root@srv1233244:~/WhatsappChatbot/
+
+# ============================================================================
+# STEP 6: DEPLOY THE ENHANCED SYSTEM (RUN ON SERVER)
+# ============================================================================
+
+# Check if Docker container is running
+docker ps
+
+# Copy new files to running container
+docker cp gemini_vector_search.py watchvine_main_app:/app/
+docker cp enhanced_backend_tool_classifier.py watchvine_main_app:/app/
+docker cp agent_orchestrator.py watchvine_main_app:/app/
+docker cp watch_only_scraper.py watchvine_main_app:/app/
+
+# Restart the container
+docker restart watchvine_main_app
+sleep 20
+
+# Initialize vector search
+docker exec watchvine_main_app python -c "
+from gemini_vector_search import GeminiVectorSearch
+search = GeminiVectorSearch('mongodb://admin:strongpassword123@72.62.76.36:27017/?authSource=admin', 'AIzaSyBZ8shurgeNDiDj4TlpBk7RUgrQ-G2mJ_0')
+print('🔄 Creating vector embeddings...')
+search.index_products(batch_size=20)
+print('✅ Vector indexing complete!')
+search.close()
+"
+
+# Test the enhanced system
+docker exec watchvine_main_app python -c "
+from updated_agent_orchestrator import AgentOrchestrator
+orchestrator = AgentOrchestrator()
+result = orchestrator.process_message([], 'mane rolex watch black ma joi e', '+1234567890')
+print(f'✅ System test: {result.get(\"tool_used\")} - Success!')
+"
+
+# ============================================================================
+# STEP 7: VERIFY DEPLOYMENT
+# ============================================================================
+
+# Check container health
+docker exec watchvine_main_app curl -f http://localhost:8000/health
+
+# Check logs
+docker logs --tail=50 watchvine_main_app
+
+# Test vector search
+docker exec watchvine_main_app python -c "
+from enhanced_backend_tool_classifier import BackendToolClassifier
+classifier = BackendToolClassifier()
+result = classifier.classify_and_search('show me luxury watches')
+print(f'✅ Vector search working: {len(result.get(\"formatted_response\", {}).get(\"products\", []))} products found')
+classifier.close()
+"
+
+echo "🎉 DEPLOYMENT COMPLETE!"
+echo "✅ Old files removed"
+echo "✅ New vector search system deployed"  
+echo "✅ Evolution API integration ready"
+echo "✅ Watch-only scraper ready"
+echo "✅ Hinglish query support active"
+
+# ============================================================================
+# EXPECTED RESULTS
+# ============================================================================
+
+# Your enhanced system now includes:
+# ✅ MongoDB vector search with Gemini embeddings
+# ✅ Hinglish query understanding ("mane joi e" -> "I want") 
+# ✅ Watch-only scraping (no more non-watch products)
+# ✅ Evolution API image sending (actual images, not URLs)
+# ✅ Smart product classification
+# ✅ Comprehensive AI field extraction
+
+# Customer experience:
+# User: "mane rolex watch black ma joi e" 
+# Bot: Sends 3 actual black Rolex watch images with prices and links

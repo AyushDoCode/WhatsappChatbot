@@ -1,0 +1,132 @@
+# 🚀 EVOLUTION API VECTOR SEARCH DEPLOYMENT
+# MongoDB Vector Search + Evolution API Image Sending
+# Uses your existing WhatsApp functions with new vector search
+
+# ============================================================================
+# COPY FILES (USING YOUR EXISTING EVOLUTION API)
+# ============================================================================
+
+# Copy vector search system
+docker cp gemini_vector_search.py watchvine_main_app:/app/gemini_vector_search.py
+docker cp enhanced_backend_tool_classifier.py watchvine_main_app:/app/enhanced_backend_tool_classifier.py
+
+# Copy updated agent orchestrator (uses your existing WhatsApp functions)
+docker cp updated_agent_orchestrator.py watchvine_main_app:/app/agent_orchestrator.py
+
+# ============================================================================
+# RESTART CONTAINER
+# ============================================================================
+
+# Restart to load new modules
+docker restart watchvine_main_app
+sleep 20
+
+# ============================================================================
+# INITIALIZE VECTOR SEARCH
+# ============================================================================
+
+# Create vector embeddings for existing products
+docker exec watchvine_main_app python -c "
+from gemini_vector_search import GeminiVectorSearch
+search = GeminiVectorSearch('mongodb://admin:strongpassword123@72.62.76.36:27017/?authSource=admin', 'AIzaSyBZ8shurgeNDiDj4TlpBk7RUgrQ-G2mJ_0')
+print('🔄 Creating vector embeddings...')
+search.index_products(batch_size=20)
+stats = search.get_indexing_stats()
+print(f'✅ Indexing complete: {stats}')
+search.close()
+"
+
+# ============================================================================
+# TEST THE SYSTEM
+# ============================================================================
+
+# Test vector search with Evolution API
+docker exec watchvine_main_app python -c "
+from updated_agent_orchestrator import AgentOrchestrator
+orchestrator = AgentOrchestrator()
+
+# Test product search
+result = orchestrator.process_message(
+    conversation_history=[],
+    user_message='mane rolex watch black ma joi e',
+    phone_number='+1234567890'  # Test number
+)
+
+print(f'✅ Test result: {result.get(\"tool_used\", \"unknown\")}')
+print(f'📱 Images sent: {result.get(\"images_sent\", False)}')
+print(f'📊 Products: {result.get(\"products_count\", 0)}')
+"
+
+# ============================================================================
+# VERIFY SYSTEM
+# ============================================================================
+
+# Check main app health
+docker exec watchvine_main_app curl -f http://localhost:8000/health
+
+# Test classification and search
+docker exec watchvine_main_app python -c "
+from enhanced_backend_tool_classifier import BackendToolClassifier
+classifier = BackendToolClassifier()
+
+# Test queries
+queries = [
+    ('mane rolex watch joi e', 'Product search - Hinglish'),
+    ('show me luxury watches', 'Product search - English'),
+    ('hi how are you', 'General chat')
+]
+
+for query, desc in queries:
+    result = classifier.classify_and_search(query)
+    tool = result.get('tool', 'unknown')
+    products = len(result.get('formatted_response', {}).get('products', []))
+    print(f'{desc}: \"{query}\" -> {tool} ({products} products)')
+
+classifier.close()
+"
+
+# ============================================================================
+# MONITOR LOGS
+# ============================================================================
+
+# Watch logs for Evolution API sending
+docker logs -f watchvine_main_app
+
+# ============================================================================
+# EXPECTED WORKFLOW WITH EVOLUTION API
+# ============================================================================
+
+# 🔄 Enhanced Workflow:
+# 1. User: "mane rolex watch black ma joi e" 
+# 2. Backend: Enhances to "I want black Rolex watch"
+# 3. Vector Search: Finds matching black Rolex watches
+# 4. Evolution API: Sends actual images with:
+#    - Summary message: "Found 3 watches for you! Sending images..."
+#    - Image 1 with caption: "*Rolex - Submariner Black*\n💰 Price: ₹5999\n🔗 Shop: https://..."
+#    - Image 2 with caption: "*Rolex - GMT Master*\n💰 Price: ₹6499\n🔗 Shop: https://..."
+#    - Image 3 with caption: "*Rolex - Daytona*\n💰 Price: ₹7999\n🔗 Shop: https://..."
+
+# ✅ What's Working:
+# - Uses your existing Evolution API functions (send_message, send_image)
+# - Hinglish query understanding: "mane joi e" -> "I want"
+# - MongoDB vector search with Gemini text embeddings
+# - Semantic product matching (understands "luxury" = expensive watches)
+# - Sends real images via WhatsApp (not URLs)
+# - Product info in image captions (brand, price, shop link)
+# - Fallback to text if image sending fails
+# - Smart classification: product search vs general chat
+
+# 📱 Evolution API Response:
+# Message 1: "Found 3 watches for you! Sending images..."
+# 
+# Image 1: [Rolex Submariner Photo]
+# Caption: "*Rolex - Submariner Black*
+#          💰 Price: ₹5999  
+#          🔗 Shop: https://watchvine01.cartpe.in/rolex-submariner"
+#
+# Image 2: [Rolex GMT Master Photo] 
+# Caption: "*Rolex - GMT Master*
+#          💰 Price: ₹6499
+#          🔗 Shop: https://watchvine01.cartpe.in/rolex-gmt"
+
+# 🎉 DEPLOYMENT COMPLETE! Evolution API + Vector Search Ready! 🎉

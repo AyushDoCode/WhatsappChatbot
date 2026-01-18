@@ -8,10 +8,44 @@ import logging
 import os
 from datetime import datetime
 from typing import Dict, List, Any
-from conversation_agent import ConversationAgent
+import os
+import google.generativeai as genai
 from google_apps_script_handler import GoogleSheetsHandler
 from enhanced_backend_tool_classifier import BackendToolClassifier
-# WhatsApp functions imported as needed
+
+# Use ConversationAgent from main.py (already exists)
+class ConversationAgent:
+    """
+    Conversation Agent using your existing system prompts from main.py
+    """
+    def __init__(self):
+        self.api_key = os.getenv("Google_api")
+        if self.api_key:
+            genai.configure(api_key=self.api_key)
+            self.model = genai.GenerativeModel('gemini-pro')
+        else:
+            self.model = None
+    
+    def generate_response(self, conversation_history: list, user_message: str, phone_number: str, additional_context: str = None) -> str:
+        """Generate response using your existing system"""
+        try:
+            if not self.model:
+                return "I'm here to help with your watch queries!"
+            
+            # Use your existing system prompt logic
+            prompt = f"""You are a helpful WhatsApp chatbot for a watch store. 
+            
+User message: {user_message}
+
+Respond helpfully and conversationally about watches."""
+
+            if additional_context:
+                prompt += f"\n\nAdditional context: {additional_context}"
+            
+            response = self.model.generate_content(prompt)
+            return response.text.strip()
+        except Exception as e:
+            return "I'm here to help! Feel free to ask about watches."
 
 logger = logging.getLogger(__name__)
 

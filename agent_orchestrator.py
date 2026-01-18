@@ -108,7 +108,7 @@ class AgentOrchestrator:
         search_context = self.get_search_context(phone_number)
         
         # Use backend tool classifier with Gemini
-        from backend_tool_classifier import BackendToolClassifier
+        from enhanced_backend_tool_classifier import BackendToolClassifier
         classifier = BackendToolClassifier()
         
         # Classify the message (pass search context for pagination)
